@@ -16,7 +16,11 @@ A high-performance modular command-line interface (CLI) static analysis security
 
 ## Overview
 
-ATT&ck SURFACE scans local files (supporting Python, JavaScript, HTML, configurations, Dockerfiles, etc.) for common code vulnerabilities and insecure setups. Unlike simple regex searches, it evaluates context to check if findings are mitigated with sanitization functions (e.g., escaping, hashing, parameterized database queries).
+**ATT&ck SURFACE** is a high-performance modular command-line interface (CLI) static analysis security testing (SAST) tool.
+
+It targets 40 distinct security areas (attack surfaces) and inspects codebases for vulnerabilities, accounting for sanitization blocks.
+
+Created by **Tokyo**
 
 ## Architecture
 
@@ -124,36 +128,3 @@ python main.py test_sandbox
 ```
 
 ---
-
-## Git Workflow
-
-To push this modular project to your Git repository:
-
-```bash
-# Initialize git repository (if not already done)
-git init
-
-# Add all files (the included .gitignore automatically excludes venv/ and cache files)
-git add .
-
-# Create the initial commit
-git commit -m "feat: implement modular ATT&ck SURFACE scanner and setup venv"
-
-# Add your remote branch and push
-# git remote add origin <your_repository_url>
-# git branch -M main
-# git push -u origin main
-```
-
----
-
-## Aesthetic Reference
-The scanner displays a highly aesthetic gradient block ASCII logo styled after modern security terminal tools:
-```text
- █████╗ ████████╗████████╗██╗  ██╗    ███████╗██╗   ██╗██████╗ ███████╗ █████╗  ██████╗███████╗
-██╔══██╗╚══██╔══╝╚══██╔══╝██║ ██╔╝    ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
-...
-ATT&ck SURFACE
-BY TOKYO
-```
-Created by **Tokyo**.
