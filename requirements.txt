@@ -1,0 +1,2 @@
+# Zero runtime external dependencies required (Uses Python Standard Library only).
+# Compatible with Python 3.7+
