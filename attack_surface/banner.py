@@ -1,38 +1,70 @@
+import os
+import platform
+from datetime import datetime
+
+# ANSI Colors
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+CYAN = "\033[96m"
+WHITE = "\033[97m"
+GRAY = "\033[90m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+
 def print_banner():
-        lines = [
-        r"  ___  _____ _____ _   _ _____ _   _   _____ _   _ ______  ___  _____ _____ ",
-        r" / _ \/__   _/__   | | / /  ___| | | | /  ___| | | | ___ \/ _ \/  __ \  ___|",
-        r"/ /_\ \  | |   | | | |/ /| |__ | |_| | \`--. | | | | |_/ / /_\ \ /  \/| |__  ",
-        r"|  _  |  | |   | | |    \|  __||  _  |  \`--. \ | | |    /|  _  | \__/\|  __| ",
-        r"| | | |  | |   | | | |\  \ |___| | | | /\__/ / |_| | |\ \| | | | \____/\____|",
-        r"\_| |_/  \_/   \_/ \_| \_/\____/\_| |_/ \____/ \___/\_| \_\_| |_/\____/\____|",
-        r"                                                                            ",
-        r"                  Attack Surface Mapping & Security Review                  ",
-        r"                                  by Tokyo                                  "
-    ]
+    banner = f"""{RED}
+ █████╗ ████████╗████████╗ █████╗  ██████╗██╗  ██╗    ███████╗██╗   ██╗██████╗ ███████╗ █████╗  ██████╗███████╗
+██╔══██╗╚══██╔══╝╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝    ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
+███████║   ██║      ██║   ███████║██║     █████╔╝     ███████╗██║   ██║██████╔╝█████╗  ███████║██║     █████╗
+██╔══██║   ██║      ██║   ██╔══██║██║     ██╔═██╗     ╚════██║██║   ██║██╔══██╗██╔══╝  ██╔══██║██║     ██╔══╝
+██║  ██║   ██║      ██║   ██║  ██║╚██████╗██║  ██╗    ███████║╚██████╔╝██║  ██║██║     ██║  ██║╚██████╗███████╗
+╚═╝  ╚═╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝
+
+{WHITE}
+╔════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                   ATT&CK SURFACE v1.0.0                                          ║
+║                      Attack Surface Mapping & Security Review Framework                           ║
+║                                                                                                    ║
+║  Features:                                                                                         ║
+║   • Endpoint Discovery      • Secret Detection      • File Upload Analysis                        ║
+║   • API Enumeration         • Security Misconfig    • Parameter Mapping                           ║
+║   • Source Code Review      • Risk Classification   • Attack Surface Coverage                     ║
+║                                                                                                    ║
+║  Developer : Tokyo                                                                         ║
+║  GitHub    : github.com/Tokyo-stack/Att4ck-surface                                                ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════╝
+{RESET}
+"""
+    print(banner)
 
 
-   colors = [
-    "\033[1;38;5;197m", # Bold Pink/Red
-    "\033[1;38;5;201m", # Bold Magenta
-    "\033[1;38;5;129m", # Bold Purple
-    "\033[1;38;5;93m",  # Bold Indigo
-    "\033[1;38;5;39m",  # Bold Blue
-    "\033[1;38;5;51m",  # Bold Cyan
-    "\033[1;38;5;51m",  # Spacer line
-    "\033[1;38;5;39m",  # Bold Subtitle
-    "\033[1;38;5;244m"  # Bold Author
-]
+def print_startup():
+    print(f"{BLUE}[INFO]{RESET} Initializing modules...")
+    print(f"{BLUE}[INFO]{RESET} Loading attack surface inventory...")
+    print(f"{BLUE}[INFO]{RESET} Loading detection engine...")
+    print(f"{BLUE}[INFO]{RESET} Loading security rulesets...")
+    print(f"{BLUE}[INFO]{RESET} Initializing reporting engine...")
+    print(f"{GREEN}[SUCCESS]{RESET} ATT&CK Surface initialized.\n")
 
 
-    print()
+def print_environment():
+    print(f"{CYAN}{'─' * 90}{RESET}")
+    print(f"{WHITE}Framework :{RESET} ATT&CK Surface")
+    print(f"{WHITE}Version   :{RESET} 1.0.0")
+    print(f"{WHITE}Python    :{RESET} {platform.python_version()}")
+    print(f"{WHITE}Platform  :{RESET} {platform.system()} {platform.release()}")
+    print(f"{WHITE}Timestamp :{RESET} {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{CYAN}{'─' * 90}{RESET}\n")
 
-    for line, color in zip(lines, colors):
-        print(f"{color}{line}\033[0m")
 
-    # MAIN HEADLINE (inside banner area)
-    print(f"\033[96m\033[1mATT&ck SURFACE\033[0m")
+if __name__ == "__main__":
+    # Enable ANSI support on Windows
+    if os.name == "nt":
+        os.system("")
 
-    print(f"\033[93mBy TOKYO\033[0m")
-
-    print(f"\033[94m------------------------------------------------------------------------------------------\033[0m")
+    print_banner()
+    print_startup()
+    print_environment()
