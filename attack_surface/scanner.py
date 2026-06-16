@@ -1,136 +1,93 @@
+# attack_surface/scanner.py
 import os
-import sys
-from .rules import RULES
-from .banner import (
-    print_banner,
-    COLOR_BLUE,
-    COLOR_CYAN,
-    COLOR_GREEN,
-    COLOR_WARNING,
-    COLOR_FAIL,
-    COLOR_RESET,
-    COLOR_BOLD
-)
+import concurrent.futures
+from attack_surface.rules import RULES
 
-def scan_file(filepath):
+def _process_single_file(args):
     """
-    Scans a single file against the defined rules.
-    Returns a list of findings dicts.
+    Isolated parallel worker function. Processes a single file against a rule.
     """
-    findings = []
-    _, ext = os.path.splitext(filepath)
-    filename = os.path.basename(filepath)
+    file_path, rule, target_dir = args
+    local_findings = []
     
-    # Matching rules for this file type
-    matching_rules = [r for r in RULES if ext in r.file_exts or filename in r.file_exts]
-    if not matching_rules:
-        return findings
-
     try:
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
-    except Exception as e:
-        print(f"{COLOR_FAIL}[Error] Failed to read {filepath}: {e}{COLOR_RESET}")
-        return findings
 
-    # Check each rule
-    for rule in matching_rules:
-        rule_matched = False
-        findings_for_rule = []
-        
-        for idx, line in enumerate(lines):
-            line_num = idx + 1
-            line_str = line.strip()
+        for line_idx, raw_line in enumerate(lines, 1):
+            line = raw_line.strip()
             
-            # Check vulnerability pattern
-            has_vuln = any(p.search(line_str) for p in rule.vuln_patterns)
-            if has_vuln:
-                rule_matched = True
-                # Check context for sanitizers (same line, or 2 lines around it)
-                has_sanitizer = False
-                context_range = range(max(0, idx - 1), min(len(lines), idx + 2))
-                for c_idx in context_range:
-                    context_line = lines[c_idx].strip()
-                    if any(s.search(context_line) for s in rule.sanitizer_patterns):
-                        has_sanitizer = True
-                        break
+            # 1. Match vulnerability signature
+            vuln_detected = any(v_pattern.search(line) for v_pattern in rule.vuln_patterns)
+            
+            if vuln_detected:
+                # 2. Check line for immediate sanitizer keywords
+                is_sanitized = any(s_pattern.search(line) for s_pattern in rule.sanitizer_patterns)
                 
-                findings_for_rule.append({
-                    "line": line_num,
-                    "code": line_str,
-                    "sanitized": has_sanitizer
-                })
-        
-        if rule_matched:
-            # Group into sanitized vs unsanitized findings
-            unsanitized_findings = [f for f in findings_for_rule if not f["sanitized"]]
-            sanitized_findings = [f for f in findings_for_rule if f["sanitized"]]
-            
-            # If there are any unsanitized findings, report them
-            if unsanitized_findings:
-                for uf in unsanitized_findings:
-                    findings.append({
-                        "category": rule.category,
-                        "name": rule.name,
-                        "line": uf["line"],
-                        "code": uf["code"],
-                        "sanitized": False,
-                        "message": f"{rule.name} possibility: {rule.vuln_desc}"
-                    })
-            # If all occurrences are sanitized, print the confirmation message
-            else:
-                for sf in sanitized_findings:
-                    findings.append({
-                        "category": rule.category,
-                        "name": rule.name,
-                        "line": sf["line"],
-                        "code": sf["code"],
-                        "sanitized": True,
-                        "message": rule.safe_desc
-                    })
+                # 3. Check surrounding line context buffer (1 line above and below)
+                if not is_sanitized:
+                    start_win = max(0, line_idx - 2)
+                    end_win = min(len(lines), line_idx + 1)
+                    context_window = lines[start_win:end_win]
                     
-    return findings
+                    is_sanitized = any(
+                        any(s_pattern.search(cl.strip()) for s_pattern in rule.sanitizer_patterns)
+                        for cl in context_window
+                    )
 
-def scan_directory(dirpath):
-    """
-    Recursively scans the directory and outputs formatted findings.
-    """
-    total_files = 0
-    total_findings = 0
-    unsanitized_count = 0
-    
-    print_banner()
-    print(f"Target Directory: {dirpath}\n")
-
-    # Group results by file
-    for root, dirs, files in os.walk(dirpath):
-        # Exclude directories
-        dirs[:] = [d for d in dirs if d not in ('.git', 'node_modules', 'venv', '__pycache__', '.idea', '.vscode')]
+                local_findings.append({
+                    "category": rule.category,
+                    "name": rule.name,
+                    "file": os.path.relpath(file_path, target_dir),
+                    "line": line_idx,
+                    "snippet": line[:80],
+                    "status": "SANITIZED" if is_sanitized else "VULNERABLE",
+                    "description": rule.safe_desc if is_sanitized else rule.vuln_desc
+                })
+    except Exception:
+        pass
         
-        for file in files:
-            filepath = os.path.join(root, file)
-            relpath = os.path.relpath(filepath, dirpath)
-            
-            file_findings = scan_file(filepath)
-            if file_findings:
-                total_files += 1
-                total_findings += len(file_findings)
-                
-                print(f"{COLOR_BLUE}{COLOR_BOLD}File: {relpath}{COLOR_RESET}")
-                
-                for f in file_findings:
-                    if f["sanitized"]:
-                        print(f"  [{COLOR_GREEN}SAFE{COLOR_RESET}] Line {f['line']}: {f['message']}")
-                        print(f"         Code: {COLOR_GREEN}{f['code']}{COLOR_RESET}")
-                    else:
-                        unsanitized_count += 1
-                        print(f"  [{COLOR_FAIL}VULN{COLOR_RESET}] Line {f['line']}: {f['message']}")
-                        print(f"         Code: {COLOR_FAIL}{f['code']}{COLOR_RESET}")
-                print()
+    return local_findings
 
-    print(f"{COLOR_CYAN}{COLOR_BOLD}=== Scan Summary ==={COLOR_RESET}")
-    print(f"Files with matches: {total_files}")
-    print(f"Total findings:     {total_findings}")
-    print(f"Unsanitized issues: {COLOR_FAIL if unsanitized_count > 0 else COLOR_GREEN}{unsanitized_count}{COLOR_RESET}")
-    if unsanitized_count == 0 and total_findings > 0:
-        print(f"{COLOR_GREEN}All identified attack surfaces have been properly sanitized.{COLOR_RESET}")
+
+class SurfaceScanner:
+    def __init__(self, target_dir, rules_list=None):
+        """
+        Multi-Core Static Application Security Testing (SAST) Scanner Engine.
+        """
+        self.target_dir = os.path.abspath(target_dir)
+        self.rules = rules_list if rules_list is not None else RULES
+        self.findings = []
+        
+        # Directories professionals always ignore
+        self.excluded_dirs = {
+            'venv', '.venv', 'env', '.git', 'node_modules', 
+            '__pycache__', '.pytest_cache', '.idea', '.vscode'
+        }
+
+    def scan(self):
+        """Walks directories and maps files to workers using a process pool."""
+        tasks = []
+        
+        for root, dirs, files in os.walk(self.target_dir):
+            dirs[:] = [d for d in dirs if d not in self.excluded_dirs]
+            
+            for file in files:
+                # FIX: os.path.splitext returns a tuple. We grab index [1] for the string extension!
+                file_ext = os.path.splitext(file)[1].lower()
+                file_path = os.path.join(root, file)
+                
+                for rule in self.rules:
+                    if file_ext in rule.file_exts or (not rule.file_exts and file == "Dockerfile"):
+                        tasks.append((file_path, rule, self.target_dir))
+
+        if not tasks:
+            return self.findings
+
+        # Bypass GIL constraints using modern multi-processing
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(_process_single_file, tasks)
+            for result_list in results:
+                self.findings.extend(result_list)
+
+        return self.findings

@@ -1,1 +1,0 @@
-from .scanner import scan_directory
