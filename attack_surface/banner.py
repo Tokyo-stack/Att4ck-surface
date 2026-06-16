@@ -25,15 +25,15 @@ def print_banner():
 
 {WHITE}
 ╔════════════════════════════════════════════════════════════════════════════════════════════════════╗
-║                                   ATT&CK SURFACE v1.0.0                                          ║
-║                      Attack Surface Mapping & Security Review Framework                           ║
+║                                   ATT&CK SURFACE v1.0.0                                            ║
+║                      Attack Surface Mapping & Security Review Framework                            ║
 ║                                                                                                    ║
 ║  Features:                                                                                         ║
-║   • Endpoint Discovery      • Secret Detection      • File Upload Analysis                        ║
-║   • API Enumeration         • Security Misconfig    • Parameter Mapping                           ║
-║   • Source Code Review      • Risk Classification   • Attack Surface Coverage                     ║
+║   • Endpoint Discovery      • Secret Detection      • File Upload Analysis                         ║
+║   • API Enumeration         • Security Misconfig    • Parameter Mapping                            ║
+║   • Source Code Review      • Risk Classification   • Attack Surface Coverage                      ║
 ║                                                                                                    ║
-║  Developer : Tokyo                                                                         ║
+║  Developer : Tokyo                                                                                 ║
 ║  GitHub    : github.com/Tokyo-stack/Att4ck-surface                                                ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════╝
 {RESET}
