@@ -1,0 +1,112 @@
+[
+    {
+        "category": "userInputs",
+        "name": "Unsanitized Dynamic Command Execution",
+        "file": "script_11_2imcfeoihbnlq.js",
+        "line": 1,
+        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+    },
+    {
+        "category": "userInputs",
+        "name": "Unsanitized Dynamic Command Execution",
+        "file": "script_14_0cz1d0mv5g_q7.js",
+        "line": 1,
+        "snippet": "!function(){var t=\"undefined\"!=typeof globalThis?globalThis:\"undefined\"!=typeof window?window:\"undef",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+    },
+    {
+        "category": "userInputs",
+        "name": "Unsanitized Dynamic Command Execution",
+        "file": "script_2_2byz0zksszmry.js",
+        "line": 1,
+        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+    },
+    {
+        "category": "javascriptAnalysis",
+        "name": "Dangerous DOM manipulation",
+        "file": "script_2_2byz0zksszmry.js",
+        "line": 1,
+        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (DOM updates processed securely using standard sandboxed innerText targets)."
+    },
+    {
+        "category": "searchParameters",
+        "name": "Reflected Search Parameter (XSS possibility)",
+        "file": "script_3_3ugjs1ozfzkl7.js",
+        "line": 2,
+        "snippet": "Read more: https://nextjs.org/docs/messages/failed-to-find-server-action`),\"__NEXT_ERROR_CODE\",{valu",
+        "status": "VULNERABLE",
+        "severity": "HIGH",
+        "description": "Unfiltered url parameters direct-rendering to client views, exposing Reflected XSS vectors."
+    },
+    {
+        "category": "userInputs",
+        "name": "Unsanitized Dynamic Command Execution",
+        "file": "script_4_2nce18v96538l.js",
+        "line": 2,
+        "snippet": "${t}`))}function B(){let e=new AbortController;return e.abort(Object.defineProperty(new g.BailoutToC",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+    },
+    {
+        "category": "logging",
+        "name": "Plaintext Credential Log Leak",
+        "file": "script_6_23kab4ys_01b2.js",
+        "line": 1,
+        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
+        "status": "VULNERABLE",
+        "severity": "LOW",
+        "description": "Logging actions appending sensitive run-time account parameters to unencrypted log paths."
+    },
+    {
+        "category": "userInputs",
+        "name": "Unsanitized Dynamic Command Execution",
+        "file": "script_7_1hhj9q7_w8np9.js",
+        "line": 2,
+        "snippet": "Read more: https://nextjs.org/docs/messages/next-image-missing-loader`),\"__NEXT_ERROR_CODE\",{value:\"",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+    },
+    {
+        "category": "userInputs",
+        "name": "Unsanitized Dynamic Command Execution",
+        "file": "script_9_101v8um-4sfpk.js",
+        "line": 1,
+        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+    },
+    {
+        "category": "adminPortals",
+        "name": "Exposed Privileged Administrative Portal",
+        "file": "script_9_101v8um-4sfpk.js",
+        "line": 5,
+        "snippet": "For more information, see https://radix-ui.com/primitives/docs/components/${t.docsSlug}`;return v.us",
+        "status": "VULNERABLE",
+        "severity": "HIGH",
+        "description": "Privileged routing interface paths defined inside client-accessible tracking domains."
+    },
+    {
+        "category": "javascriptAnalysis",
+        "name": "Dangerous DOM manipulation",
+        "file": "script_9_101v8um-4sfpk.js",
+        "line": 1,
+        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
+        "status": "SANITIZED",
+        "severity": "HIGH",
+        "description": "No attack surface found (DOM updates processed securely using standard sandboxed innerText targets)."
+    }
+]
