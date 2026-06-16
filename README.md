@@ -1,7 +1,5 @@
 # ATT&ck SURFACE Security Scanner
 
-A high-performance modular command-line interface (CLI) static analysis security testing (SAST) tool. It targets 40 distinct security areas (attack surfaces) and inspects codebases for vulnerabilities, accounting for sanitization blocks.
-
 ## Table of Contents
 
 - [Overview](#overview)
@@ -16,16 +14,17 @@ A high-performance modular command-line interface (CLI) static analysis security
 
 ## Overview
 
-# **ATT&CK SURFACE**
+# ATT&CK SURFACE
 
-### **Attack Surface Mapping & Security Review**
-***by Tokyo***
+### Attack Surface Mapping & Security Review
+*by Tokyo*
 
 It targets 40 distinct security areas (attack surfaces) and inspects codebases for vulnerabilities, accounting for sanitization blocks.
 
 Created by **Tokyo**
 
 ## Architecture
+
 
 The project has been split into a clean, modular structure preventing bloated files:
 
