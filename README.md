@@ -2,15 +2,15 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [List of Attack Surfaces](#list-of-attack-surfaces)
-- [Installation and Environment Setup](#installation-and-environment-setup)
-- [Usage](#usage)
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+3. [List of Attack Surfaces](#list-of-attack-surfaces)
+4. [Installation and Environment Setup](#installation-and-environment-setup)
+5. [Usage](#usage)
 
 ---
 
-## Overview
+## 1. Overview
 
 ```text
  █████╗ ████████╗████████╗██╗  ██╗ ██████╗██╗  ██╗     ███████╗██╗   ██╗██████╗ ███████╗ █████╗  ██████╗███████╗
@@ -35,13 +35,12 @@
 ```
 
 ### Attack Surface Mapping & Security Review
-*by Tokyo*
+
+ATT&ck SURFACE is a high-performance modular command-line interface (CLI) static analysis security testing (SAST) tool. It targets 40 distinct security areas (attack surfaces) and inspects codebases for vulnerabilities, accounting for sanitization blocks.
 
 It targets 40 distinct security areas (attack surfaces) and inspects codebases for vulnerabilities, accounting for sanitization blocks.
 
-Created by **Tokyo**
-
-## Architecture
+## 2. Architecture
 
 The project has been split into a clean, modular structure preventing bloated files:
 
@@ -57,7 +56,7 @@ ATT4ckSurface/
 └── README.md            # Project guide
 ```
 
-## List of Attack Surfaces
+## 3. List of Attack Surfaces
 
 The scanner monitors the following 40 categories:
 
@@ -104,7 +103,7 @@ The scanner monitors the following 40 categories:
 
 ---
 
-## Installation and Environment Setup
+## 4. Installation and Environment Setup
 
 Initialize and activate a virtual environment (`venv`) to run the tool cleanly:
 
@@ -133,7 +132,7 @@ pip install -r requirements.txt
 
 ---
 
-## Usage
+## 5. Usage
 
 Run the scanner against any directory (defaults to current directory if none provided):
 
