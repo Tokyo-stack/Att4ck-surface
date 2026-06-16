@@ -1,4 +1,4 @@
-# ATT&ck SURFACE Security Scanner
+# ATT4ck Surface Security Scanner
 
 ## Table of Contents
 
@@ -7,23 +7,21 @@
 - [List of Attack Surfaces](#list-of-attack-surfaces)
 - [Installation and Environment Setup](#installation-and-environment-setup)
 - [Usage](#usage)
-- [Git Workflow](#git-workflow)
-- [Aesthetic Reference](#aesthetic-reference)
 
 ---
 
 ## Overview
 
-# ATT&CK SURFACE
-█████╗ ████████╗████████╗ █████╗  ██████╗██╗  ██╗    ███████╗██╗   ██╗██████╗ ███████╗ █████╗  ██████╗███████╗
-██╔══██╗╚══██╔══╝╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝    ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
-███████║   ██║      ██║   ███████║██║     █████╔╝     ███████╗██║   ██║██████╔╝█████╗  ███████║██║     █████╗  
-██╔══██║   ██║      ██║   ██╔══██║██║     ██╔═██╗     ╚════██║██║   ██║██╔══██╗██╔══╝  ██╔══██║██║     ██╔══╝  
-██║  ██║   ██║      ██║   ██║  ██║╚██████╗██║  ██╗    ███████║╚██████╔╝██║  ██║██║     ██║  ██║╚██████╗███████╗
-╚═╝  ╚═╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝
+```text
+ █████╗ ████████╗████████╗██╗  ██╗ ██████╗██╗  ██╗     ███████╗██╗   ██╗██████╗ ███████╗ █████╗  ██████╗███████╗
+██╔══██╗╚══██╔══╝╚══██╔══╝██║  ██║██╔════╝██║ ██╔╝     ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝
+███████║   ██║      ██║   ███████║██║     █████╔╝      ███████╗██║   ██║██████╔╝█████╗  ███████║██║     █████╗  
+██╔══██║   ██║      ██║   ╚════██║██║     ██╔═██╗      ╚════██║██║   ██║██╔══██╗██╔══╝  ██╔══██║██║     ██╔══╝  
+██║  ██║   ██║      ██║        ██║╚██████╗██║  ██╗     ███████║╚██████╔╝██║  ██║██║     ██║  ██║╚██████╗███████╗
+╚═╝  ╚═╝   ╚═╝      ╚═╝        ╚═╝ ╚═════╝╚═╝  ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝
 
 ╔════════════════════════════════════════════════════════════════════════════════════════════════════╗
-║                                       ATT&CK SURFACE v1.0.0                                        ║
+║                                       ATT4ck Surface v1.0.0                                        ║
 ║                        Attack Surface Mapping & Security Review Framework                          ║
 ║                                                                                                    ║
 ║  Features:                                                                                         ║
@@ -34,7 +32,7 @@
 ║  Developer : Tokyo                                                                                 ║
 ║  GitHub    : github.com/Tokyo-stack/Att4ck-surface                                                 ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════╝
-
+```
 
 ### Attack Surface Mapping & Security Review
 *by Tokyo*
@@ -45,11 +43,10 @@ Created by **Tokyo**
 
 ## Architecture
 
-
 The project has been split into a clean, modular structure preventing bloated files:
 
 ```text
-ATT&ckSurface/
+ATT4ckSurface/
 ├── attack_surface/
 │   ├── __init__.py      # Package entry point
 │   ├── banner.py        # Terminal formatting and logo banner
@@ -129,7 +126,7 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-Install standard dependencies (if needed, though this tool currently relies entirely on Python's built-in standard library):
+Install standard dependencies:
 ```bash
 pip install -r requirements.txt
 ```
@@ -148,5 +145,3 @@ For example, to run against the included test sandbox:
 ```bash
 python main.py test_sandbox
 ```
-
----
