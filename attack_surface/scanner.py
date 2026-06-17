@@ -53,15 +53,31 @@ class SurfaceScanner:
         self.target_dir = os.path.abspath(target_dir)
         self.rules = rules_list if rules_list is not None else RULES
         self.findings = []
-        self.excluded_dirs = {'venv', '.venv', 'env', '.git', 'node_modules', '__pycache__', '.pytest_cache'}
+        
+        # Combined exclusions directly into class variables
+        self.excluded_dirs = {
+            'venv', '.venv', 'env', '.git', 'node_modules', 
+            '__pycache__', '.pytest_cache', '.next', 'dist', 'build'
+        }
+        self.excluded_exts = {
+            '.min.js', '.map', '.css', '.svg', '.png', '.jpg', '.jpeg', '.gif'
+        }
 
     def scan(self):
         tasks = []
         for root, dirs, files in os.walk(self.target_dir):
+            # In-place filtering modifications to skip build directories completely
             dirs[:] = [d for d in dirs if d not in self.excluded_dirs]
+            
             for file in files:
                 file_ext = os.path.splitext(file)[1].lower()
                 file_path = os.path.join(root, file)
+                
+                # Check for two-part extensions like .min.js safely
+                is_excluded_ext = any(file.lower().endswith(ext) for ext in self.excluded_exts)
+                if is_excluded_ext:
+                    continue  # Skip production bundles/media assets instantly
+
                 for rule in self.rules:
                     if file_ext in rule.file_exts or (not rule.file_exts and file == "Dockerfile"):
                         tasks.append((file_path, rule, self.target_dir))
