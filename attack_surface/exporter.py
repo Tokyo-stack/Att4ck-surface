@@ -10,6 +10,7 @@ def export_results(results, output_dir):
     # JSON export
     json_path = os.path.join(output_dir, "findings.json")
     with open(json_path, "w", encoding="utf-8") as f:
+        print("TOTAL RESULTS:", len(results))
         json.dump(results, f, indent=4)
 
     # SQLite export
