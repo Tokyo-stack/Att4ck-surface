@@ -1,112 +1,101 @@
-[
-    {
-        "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file": "script_11_2imcfeoihbnlq.js",
-        "line": 1,
-        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
-    },
-    {
-        "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file": "script_14_0cz1d0mv5g_q7.js",
-        "line": 1,
-        "snippet": "!function(){var t=\"undefined\"!=typeof globalThis?globalThis:\"undefined\"!=typeof window?window:\"undef",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
-    },
-    {
-        "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file": "script_2_2byz0zksszmry.js",
-        "line": 1,
-        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
-    },
-    {
-        "category": "javascriptAnalysis",
-        "name": "Dangerous DOM manipulation",
-        "file": "script_2_2byz0zksszmry.js",
-        "line": 1,
-        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (DOM updates processed securely using standard sandboxed innerText targets)."
-    },
-    {
-        "category": "searchParameters",
-        "name": "Reflected Search Parameter (XSS possibility)",
-        "file": "script_3_3ugjs1ozfzkl7.js",
-        "line": 2,
-        "snippet": "Read more: https://nextjs.org/docs/messages/failed-to-find-server-action`),\"__NEXT_ERROR_CODE\",{valu",
-        "status": "VULNERABLE",
-        "severity": "HIGH",
-        "description": "Unfiltered url parameters direct-rendering to client views, exposing Reflected XSS vectors."
-    },
-    {
-        "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file": "script_4_2nce18v96538l.js",
-        "line": 2,
-        "snippet": "${t}`))}function B(){let e=new AbortController;return e.abort(Object.defineProperty(new g.BailoutToC",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
-    },
-    {
-        "category": "logging",
-        "name": "Plaintext Credential Log Leak",
-        "file": "script_6_23kab4ys_01b2.js",
-        "line": 1,
-        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
-        "status": "VULNERABLE",
-        "severity": "LOW",
-        "description": "Logging actions appending sensitive run-time account parameters to unencrypted log paths."
-    },
-    {
-        "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file": "script_7_1hhj9q7_w8np9.js",
-        "line": 2,
-        "snippet": "Read more: https://nextjs.org/docs/messages/next-image-missing-loader`),\"__NEXT_ERROR_CODE\",{value:\"",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
-    },
-    {
-        "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file": "script_9_101v8um-4sfpk.js",
-        "line": 1,
-        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
-    },
-    {
-        "category": "adminPortals",
-        "name": "Exposed Privileged Administrative Portal",
-        "file": "script_9_101v8um-4sfpk.js",
-        "line": 5,
-        "snippet": "For more information, see https://radix-ui.com/primitives/docs/components/${t.docsSlug}`;return v.us",
-        "status": "VULNERABLE",
-        "severity": "HIGH",
-        "description": "Privileged routing interface paths defined inside client-accessible tracking domains."
-    },
-    {
-        "category": "javascriptAnalysis",
-        "name": "Dangerous DOM manipulation",
-        "file": "script_9_101v8um-4sfpk.js",
-        "line": 1,
-        "snippet": "(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push([\"object\"==typeof document?document.currentSc",
-        "status": "SANITIZED",
-        "severity": "HIGH",
-        "description": "No attack surface found (DOM updates processed securely using standard sandboxed innerText targets)."
-    }
-]
+import json
+import sqlite3
+import os
+
+
+def export_results(results, output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # ---------------------------
+    # 1. Build severity summary
+    # ---------------------------
+    summary = {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 0
+}
+
+    for r in results:
+        severity = (r.get("severity") or "info").lower()
+
+        if severity in summary:
+            summary[severity
+] += 1
+        else:
+            summary[
+    "info"
+] += 1
+
+    # ---------------------------
+    # 2. Final report structure
+    # ---------------------------
+    report = {
+    "summary": summary,
+    "total_findings": len(results),
+    "findings": results
+}
+
+    # ---------------------------
+    # 3. Save JSON report
+    # ---------------------------
+    json_path = os.path.join(output_dir,
+"findings.json")
+
+    with open(json_path,
+"w", encoding="utf-8") as jf:
+        json.dump(report, jf, indent=4)
+
+    # ---------------------------
+    # 4. Save SQLite database
+    # ---------------------------
+    db_path = os.path.join(output_dir,
+"findings.db")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS security_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            name TEXT,
+            file_path TEXT,
+            line_num INTEGER,
+            snippet TEXT,
+            status TEXT,
+            severity TEXT,
+            confidence INTEGER,
+            cwe TEXT,
+            finding_id TEXT,
+            description TEXT
+        )
+    """)
+
+    cursor.execute("DELETE FROM security_findings")
+
+    for f in results:
+        cursor.execute("""
+            INSERT INTO security_findings (
+                category, name, file_path, line_num,
+                snippet, status, severity,
+                confidence, cwe, finding_id, description
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            f.get("category"),
+            f.get("name"),
+            f.get("file"),
+            f.get("line"),
+            f.get("snippet"),
+            f.get("status"),
+            f.get("severity"),
+            f.get("confidence"),
+            f.get("cwe"),
+            f.get("finding_id"),
+            f.get("description"),
+        ))
+
+    conn.commit()
+    conn.close()
