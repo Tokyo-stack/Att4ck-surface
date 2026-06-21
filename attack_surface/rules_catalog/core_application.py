@@ -1,155 +1,351 @@
-import re
+"""
+Application Rules - Authentication, Authorization, Input Validation, etc.
+"""
 
-# Categories 1 - 15: Deep application logic, input flow, and data handling
 APPLICATION_RULES = [
-    # 1. authentication
+    # Authentication
     {
         "category": "authentication",
-        "name": "Weak Hashing or Hardcoded Passwords",
-        "file_exts": [".py", ".js", ".json", ".yml", ".yaml"],
-        "vuln_patterns": [r"password\s*=\s*['\"][^'\"]+['\"]", r"hashlib\.md5\(", r"hashlib\.sha1\(", r"crypto\.createHash\(['\"](md5|sha1)['\"]"],
-        "sanitizer_patterns": [r"bcrypt", r"argon2", r"pbkdf2", r"sha256", r"os\.environ", r"process\.env", r"getpass"],
-        "vuln_desc": "Hardcoded credential or dangerous weak cryptographic hashing (MD5/SHA1).",
-        "safe_desc": "No attack surface found (Proper production hashing or externalized secrets used)."
+        "name": "Weak Hashing or Hardcoded Credentials",
+        "file_exts": [".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".yml", ".yaml"],
+        "vuln_patterns": [
+            r"password\s*=\s*['\"][^'\"]+['\"]",
+            r"hashlib\.md5\(",
+            r"hashlib\.sha1\(",
+            r"crypto\.createHash\s*\(\s*['\"](md5|sha1)['\"]",
+            r"bcrypt\.compare\s*\(\s*['\"][^'\"]+['\"]\s*,\s*['\"][^'\"]+['\"]\s*\)",
+        ],
+        "sanitizer_patterns": [
+            r"bcrypt\.",
+            r"argon2\.",
+            r"pbkdf2",
+            r"sha256",
+            r"sha512",
+            r"os\.environ",
+            r"process\.env",
+            r"getpass",
+            r"dotenv",
+        ],
+        "vuln_desc": "Hardcoded credential or weak cryptographic hashing (MD5/SHA1)",
+        "safe_desc": "Proper production hashing or externalized secrets used",
+        "severity": "CRITICAL",
+        "confidence": 85,
+        "cwe": "CWE-798"
     },
-    # 2. authorization
+    # Authorization
     {
         "category": "authorization",
         "name": "Missing Authorization Check",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"@app\.route\(['\"].*['\"]\)", r"router\.(get|post|put|delete)\("],
-        "sanitizer_patterns": [r"@login_required", r"@roles_required", r"@permission_required", r"check_permission", r"middleware"],
-        "vuln_desc": "Exposed application web endpoint lacking structural access control checks.",
-        "safe_desc": "No attack surface found (Endpoint securely protected via routing authorization wrappers)."
+        "file_exts": [".py", ".js", ".jsx", ".tsx", ".java", ".go"],
+        "vuln_patterns": [
+            r"@app\.route\s*\(\s*['\"][^'\"]+['\"]\s*\)",
+            r"router\.(get|post|put|delete|patch)\s*\(",
+            r"app\.(get|post|put|delete|patch)\s*\(",
+            r"express\.Router\s*\(\s*\)",
+            r"@GetMapping|@PostMapping|@PutMapping|@DeleteMapping",
+        ],
+        "sanitizer_patterns": [
+            r"@login_required",
+            r"@roles_required",
+            r"@permission_required",
+            r"@requires_auth",
+            r"@authenticated",
+            r"check_permission",
+            r"auth_middleware",
+            r"middleware",
+            r"@PreAuthorize",
+        ],
+        "vuln_desc": "Exposed endpoint lacking access control checks",
+        "safe_desc": "Endpoint securely protected via authorization wrappers",
+        "severity": "HIGH",
+        "confidence": 80,
+        "cwe": "CWE-862"
     },
-    # 3. sessionManagement
+    # Session Management
     {
         "category": "sessionManagement",
-        "name": "Insecure Cookie or JWT configuration",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"set_cookie\(", r"cookies\.set\(", r"jwt\.decode\(.*verify\s*=\s*False"],
-        "sanitizer_patterns": [r"httponly\s*=\s*True", r"secure\s*=\s*True", r"samesite", r"verify\s*=\s*True"],
-        "vuln_desc": "Insecure cookie flags (HttpOnly/Secure missing) or unverified JWT token evaluation.",
-        "safe_desc": "No attack surface found (Cookie flags set properly or JWT cryptographically verified)."
+        "name": "Insecure Cookie or JWT Configuration",
+        "file_exts": [".py", ".js", ".ts", ".java"],
+        "vuln_patterns": [
+            r"set_cookie\s*\(",
+            r"cookies\.set\s*\(",
+            r"jwt\.decode\s*\(.*verify\s*=\s*False",
+            r"jwt\.verify\s*\(\s*false",
+            r"res\.cookie\s*\([^,]+,\s*[^,]+,\s*{[^}]*secure\s*:\s*false",
+        ],
+        "sanitizer_patterns": [
+            r"httponly\s*=\s*True",
+            r"httpOnly\s*:\s*true",
+            r"secure\s*=\s*True",
+            r"secure\s*:\s*true",
+            r"samesite\s*=\s*['\"]strict['\"]",
+            r"samesite\s*:\s*['\"]strict['\"]",
+            r"verify\s*=\s*True",
+            r"verify\s*:\s*true",
+        ],
+        "vuln_desc": "Insecure cookie flags (HttpOnly/Secure missing) or unverified JWT",
+        "safe_desc": "Cookie flags set properly and JWT cryptographically verified",
+        "severity": "HIGH",
+        "confidence": 80,
+        "cwe": "CWE-614"
     },
-    # 4. userInputs
+    # User Inputs
     {
         "category": "userInputs",
-        "name": "Unsanitized Dynamic Command Execution",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"\beval\(", r"\bexec\(", r"subprocess\.(Popen|run|call)\("],
-        "sanitizer_patterns": [r"int\(", r"float\(", r"shlex\.quote", r"escape", r"validation"],
-        "vuln_desc": "Dynamic evaluation blocks capable of triggering arbitrary code execution flaws.",
-        "safe_desc": "No attack surface found (Dynamic parameters cleanly validated or cast to primitive metrics)."
+        "name": "Unsanitized Dynamic Code Execution",
+        "file_exts": [".py", ".js", ".jsx", ".ts", ".tsx", ".php", ".rb"],
+        "vuln_patterns": [
+            r"\beval\s*\(",
+            r"\bexec\s*\(",
+            r"subprocess\.(Popen|run|call)\s*\(",
+            r"system\s*\(",
+            r"popen\s*\(",
+            r"new\s+Function\s*\(",
+            r"Function\s*\(",
+            r"setTimeout\s*\(\s*['\"]",
+            r"setInterval\s*\(\s*['\"]",
+        ],
+        "sanitizer_patterns": [
+            r"int\s*\(",
+            r"float\s*\(",
+            r"shlex\.quote",
+            r"escape\s*\(",
+            r"validation",
+            r"sanitize\s*\(",
+            r"ast\.literal_eval",
+            r"json\.loads",
+        ],
+        "vuln_desc": "Dynamic code execution from user input (eval, exec, system)",
+        "safe_desc": "Dynamic parameters validated and sanitized before execution",
+        "severity": "CRITICAL",
+        "confidence": 90,
+        "cwe": "CWE-94"
     },
-    # 5. searchParameters
+    # XSS
     {
-        "category": "searchParameters",
-        "name": "Reflected Search Parameter (XSS possibility)",
-        "file_exts": [".py", ".js", ".html"],
-        "vuln_patterns": [r"request\.args\.get\(['\"]q['\"]", r"req\.query\.search", r"location\.search"],
-        "sanitizer_patterns": [r"html\.escape", r"DOMPurify", r"escape", r"textContent", r"innerText"],
-        "vuln_desc": "Unfiltered url parameters direct-rendering to client views, exposing Reflected XSS vectors.",
-        "safe_desc": "No attack surface found (Search parameter safely context-escaped or sanitized before render)."
+        "category": "xss",
+        "name": "DOM XSS via Unsafe DOM Manipulation",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".html", ".htm", ".vue"],
+        "vuln_patterns": [
+            r"\.innerHTML\s*=",
+            r"\.outerHTML\s*=",
+            r"document\.write\s*\(",
+            r"document\.writeln\s*\(",
+            r"\.insertAdjacentHTML\s*\(",
+            r"dangerouslySetInnerHTML",
+            r"v-html\s*=",
+            r"ng-bind-html",
+            r"\.appendChild\s*\(\s*document\.createElement",
+            r"\.createElement\s*\(\s*['\"]script['\"]\s*\)",
+            r"javascript:",
+        ],
+        "sanitizer_patterns": [
+            r"textContent\s*=",
+            r"innerText\s*=",
+            r"DOMPurify\.sanitize",
+            r"sanitize\s*\(",
+            r"escape\s*\(",
+            r"encodeURIComponent\s*\(",
+            r"encodeURI\s*\(",
+            r"\.createTextNode\s*\(",
+            r"validator\.escape",
+            r"sanitize-html",
+        ],
+        "vuln_desc": "DOM-based XSS via unsafe DOM manipulation methods",
+        "safe_desc": "DOM manipulation uses safe methods or proper sanitization",
+        "severity": "HIGH",
+        "confidence": 85,
+        "cwe": "CWE-79"
     },
-    # 6. idParameters
+    # SQL Injection
     {
-        "category": "idParameters",
-        "name": "Raw ID Parameter Formatting",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"['\"]select\s+.*\s+where\s+id\s*=\s*['\"]\s*\+\s*\w+", r"f['\"]select\s+.*\s+where\s+id\s*=\s*\{\w+\}", r"request\.(args|form)\.get\(['\"]id['\"]"],
-        "sanitizer_patterns": [r"int\(", r"uuid", r"parsed_id", r"ObjectId"],
-        "vuln_desc": "Unvalidated ID routing elements processed inside database statement format strings.",
-        "safe_desc": "No attack surface found (Target index identifiers strongly cast to discrete numerical primitives)."
+        "category": "injection",
+        "name": "SQL Injection via String Concatenation",
+        "file_exts": [".py", ".js", ".php", ".java", ".go", ".rb"],
+        "vuln_patterns": [
+            r"SELECT.*\+.*\+.*FROM",
+            r"execute\s*\(\s*['\"]%s.*['\"]\s*%",
+            r"query\s*\(\s*['\"]\+.*\+['\"]",
+            r"WHERE\s+\w+\s*=\s*['\"]?\s*\+\s*\w+",
+            r"f['\"]SELECT.*\{.*\}.*",
+            r"\$\{.*\}.*sql",
+        ],
+        "sanitizer_patterns": [
+            r"\.execute\s*\([^,]+,\s*\(",
+            r"prepared\s*statement",
+            r"\.escape\s*\(",
+            r"\.format\s*\(\s*\[",
+            r"\.cursor\.execute\s*\(\s*['\"].*%s.*['\"],\s*\(",
+            r"sequelize",
+            r"sqlalchemy\.",
+            r"\.raw\s*\(",
+        ],
+        "vuln_desc": "SQL injection via string concatenation or string formatting",
+        "safe_desc": "Using parameterized queries or ORM",
+        "severity": "CRITICAL",
+        "confidence": 85,
+        "cwe": "CWE-89"
     },
-    # 7. apiEndpoints
-    {
-        "category": "apiEndpoints",
-        "name": "Unauthenticated API Route",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"/api/v[0-9]/"],
-        "sanitizer_patterns": [r"api_key", r"token", r"jwt", r"auth", r"decorators"],
-        "vuln_desc": "API interface routes discovered without explicit systemic authorization enforcement markers.",
-        "safe_desc": "No attack surface found (Active validation middleware tracks global access credentials)."
-    },
-    # 8. graphql
+    # GraphQL
     {
         "category": "graphql",
-        "name": "Dynamic GraphQL construction",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"gql\(.*f['\"].*", r"gql\(.*\+\s*\w+"],
-        "sanitizer_patterns": [r"variables", r"variableValues", r"params"],
-        "vuln_desc": "Dynamic string construction inside GraphQL query execution chains.",
-        "safe_desc": "No attack surface found (GraphQL query parameterized securely via discrete variable arrays)."
+        "name": "GraphQL Query Injection",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".py", ".java"],
+        "vuln_patterns": [
+            r"gql\s*`[^`]*\$\{",
+            r"gql\s*\(`[^`]*\$\{",
+            r"graphql\s*`[^`]*\$\{",
+            r"\.query\s*\(\s*`[^`]*\$\{",
+            r"\.mutate\s*\(\s*`[^`]*\$\{",
+        ],
+        "sanitizer_patterns": [
+            r"variables\s*:",
+            r"variableValues",
+            r"\.setVariable",
+            r"\.query\s*\([^,]+,\s*\{",
+            r"\.mutate\s*\([^,]+,\s*\{",
+        ],
+        "vuln_desc": "GraphQL injection via string interpolation",
+        "safe_desc": "Using GraphQL variables for parameterized queries",
+        "severity": "HIGH",
+        "confidence": 80,
+        "cwe": "CWE-89"
     },
-    # 9. webhooks
+    # SSRF
     {
-        "category": "webhooks",
-        "name": "Webhook Signature Bypass",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"webhook_receiver", r"stripe_webhook", r"webhook_handle"],
-        "sanitizer_patterns": [r"signature", r"hmac", r"verify", r"construct_event"],
-        "vuln_desc": "Webhook event controller listening for incoming data without signature digest verification.",
-        "safe_desc": "No attack surface found (Incoming webhook events securely verified against provider secrets)."
+        "category": "ssrf",
+        "name": "Server-Side Request Forgery Risk",
+        "file_exts": [".py", ".js", ".ts", ".java", ".go"],
+        "vuln_patterns": [
+            r"requests\.(get|post|put|delete)\s*\(\s*['\"]http",
+            r"fetch\s*\(\s*['\"]http",
+            r"axios\.(get|post)\s*\(\s*['\"]http",
+            r"urllib\.request\.urlopen\s*\(",
+            r"http\.request\s*\(",
+            r"request\s*\(\s*['\"]http",
+        ],
+        "sanitizer_patterns": [
+            r"validate_url\s*\(",
+            r"is_valid_url\s*\(",
+            r"allowlist",
+            r"whitelist",
+            r"parse_url\s*\(",
+            r"URL\s*\(\s*['\"]https?:\/\/[^'\"\s]+\s*\)",
+        ],
+        "vuln_desc": "Potential SSRF via external URL fetch without validation",
+        "safe_desc": "URLs validated against allowlist before fetching",
+        "severity": "HIGH",
+        "confidence": 75,
+        "cwe": "CWE-918"
     },
-    # 10. fileUploads
+    # Secrets
     {
-        "category": "fileUploads",
-        "name": "Insecure File Upload Handling",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"request\.files", r"file\.save\(", r"multer\("],
-        "sanitizer_patterns": [r"secure_filename", r"allowed_file", r"mime", r"extension_check"],
-        "vuln_desc": "File ingest pipeline active without explicit runtime naming or mimetype isolation policies.",
-        "safe_desc": "No attack surface found (Payload writes pass strict safe name and extension validation filters)."
+        "category": "secrets",
+        "name": "Hardcoded API Keys and Tokens",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".py", ".json", ".yml", ".yaml"],
+        "vuln_patterns": [
+            r"(api_key|apikey|secret|token|password|key|auth)\s*[:=]\s*['\"][A-Za-z0-9_\-]{20,}['\"]",
+            r"AKIA[0-9A-Z]{16}",
+            r"sk-[a-zA-Z0-9]{20,}",
+            r"gh[pousr]_[a-zA-Z0-9]{36,}",
+            r"xox[baprs]-[a-zA-Z0-9-]+",
+            r"eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}",
+            r"firebase:.*?\{.*?apiKey",
+        ],
+        "sanitizer_patterns": [
+            r"process\.env\.",
+            r"import\.meta\.env",
+            r"window\.env",
+            r"REACT_APP_",
+            r"VUE_APP_",
+            r"NEXT_PUBLIC_",
+            r"VITE_",
+            r"getenv\s*\(",
+            r"os\.getenv",
+            r"dotenv",
+            r"localStorage\.getItem",
+            r"sessionStorage\.getItem",
+        ],
+        "vuln_desc": "Hardcoded credentials or API keys in code",
+        "safe_desc": "Credentials loaded from environment variables or secure storage",
+        "severity": "CRITICAL",
+        "confidence": 90,
+        "cwe": "CWE-798"
     },
-    # 11. fileDownloads
+    # File Operations
     {
-        "category": "fileDownloads",
-        "name": "Arbitrary File Path Traversal",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"send_file\(", r"send_from_directory\(", r"fs\.readFile\("],
-        "sanitizer_patterns": [r"safe_join", r"werkzeug\.utils", r"path\.resolve"],
-        "vuln_desc": "Local data retrieval loops serving server assets through unvalidated path arguments.",
-        "safe_desc": "No attack surface found (Path resolutions bound to isolated sandbox directories safely)."
+        "category": "fileOperations",
+        "name": "Unsafe File Operations",
+        "file_exts": [".py", ".js", ".ts", ".php", ".java"],
+        "vuln_patterns": [
+            r"open\s*\([^,]+,\s*['\"]w['\"]\)",
+            r"fs\.writeFile\s*\(\s*[^,]+,\s*[^,]+,\s*['\"]w['\"]",
+            r"file_put_contents\s*\(",
+            r"send_file\s*\(",
+            r"send_from_directory\s*\(",
+            r"fs\.readFile\s*\(\s*[^,]+,\s*['\"]?r?['\"]?\s*\)",
+        ],
+        "sanitizer_patterns": [
+            r"tempfile\.",
+            r"os\.path\.join",
+            r"shutil\.",
+            r"path\.join",
+            r"secure_filename",
+            r"safe_join",
+            r"werkzeug\.utils",
+            r"path\.resolve",
+        ],
+        "vuln_desc": "Unsafe file operations or path traversal risk",
+        "safe_desc": "Using safe file handling methods",
+        "severity": "HIGH",
+        "confidence": 75,
+        "cwe": "CWE-22"
     },
-    # 12. redirects
+    # WebSockets
     {
-        "category": "redirects",
-        "name": "Unvalidated Client Redirects",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"redirect\(request", r"res\.redirect\("],
-        "sanitizer_patterns": [r"url_parse", r"is_safe_url", r"whitelist"],
-        "vuln_desc": "Open redirect interface exposed to client parameter manipulation vectors.",
-        "safe_desc": "No attack surface found (Forced destination urls restricted to authorized local domain domains)."
+        "category": "network",
+        "name": "Insecure WebSocket Connection",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".html"],
+        "vuln_patterns": [
+            r"new\s+WebSocket\s*\(\s*['\"]ws://",
+            r"\.connect\s*\(\s*['\"]ws://",
+            r"new\s+WebSocket\s*\(\s*['\"]http://",
+        ],
+        "sanitizer_patterns": [
+            r"wss://",
+            r"WebSocket\s*\(\s*['\"]wss://",
+            r"secure\s*:\s*true",
+            r"ssl\s*:\s*true",
+        ],
+        "vuln_desc": "Insecure WebSocket connection (should use WSS://)",
+        "safe_desc": "Using secure WebSocket connection",
+        "severity": "HIGH",
+        "confidence": 80,
+        "cwe": "CWE-319"
     },
-    # 13. adminPortals
+    # HTTP Mixed Content
     {
-        "category": "adminPortals",
-        "name": "Exposed Privileged Administrative Portal",
-        "file_exts": [".py", ".js", ".html"],
-        "vuln_patterns": [r"/admin", r"/dashboard/root", r"/superuser"],
-        "sanitizer_patterns": [r"is_admin", r"require_sudo", r"IP_whitelist", r"MFA"],
-        "vuln_desc": "Privileged routing interface paths defined inside client-accessible tracking domains.",
-        "safe_desc": "No attack surface found (Administrative panels bound behind strict role evaluation checkpoints)."
+        "category": "network",
+        "name": "Mixed Content (HTTP requests from HTTPS page)",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".html", ".htm"],
+        "vuln_patterns": [
+            r"fetch\s*\(\s*['\"]http://",
+            r"axios\.(get|post|put|delete)\s*\(\s*['\"]http://",
+            r"\$\.(get|post|ajax)\s*\(\s*['\"]http://",
+            r"XMLHttpRequest.*http://",
+            r"\.open\s*\(\s*['\"]GET['\"]\s*,\s*['\"]http://",
+        ],
+        "sanitizer_patterns": [
+            r"https://",
+            r"//",
+            r"process\.env\.API_URL",
+            r"window\.location\.protocol",
+            r"baseURL",
+        ],
+        "vuln_desc": "HTTP requests from HTTPS page (mixed content)",
+        "safe_desc": "Using HTTPS for secure communication",
+        "severity": "MEDIUM",
+        "confidence": 75,
+        "cwe": "CWE-319"
     },
-    # 14. userManagement
-    {
-        "category": "userManagement",
-        "name": "IDOR profile modification context",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"update_profile", r"change_password", r"delete_account"],
-        "sanitizer_patterns": [r"current_user\.id", r"session\['user_id'\]", r"owner_check"],
-        "vuln_desc": "Profile resource mutation controllers missing contextual cross-tenant access ownership locks.",
-        "safe_desc": "No attack surface found (User updates verified strictly against immutable session context IDs)."
-    },
-    # 15. paymentSystems
-    {
-        "category": "paymentSystems",
-        "name": "Custom Credit Card Data Handling",
-        "file_exts": [".py", ".js"],
-        "vuln_patterns": [r"card_number", r"cvv", r"credit_card", r"expiry_date"],
-        "sanitizer_patterns": [r"stripe", r"braintree", r"paypal", r"pci_compliant"],
-        "vuln_desc": "In-house management parameters referencing raw credit card metadata (PCI-DSS compliance breach).",
-        "safe_desc": "No attack surface found (Payment fields managed offsite via authenticated standard gateway abstractions)."
-    }
 ]
