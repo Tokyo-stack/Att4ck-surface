@@ -3,7 +3,6 @@ Infrastructure Surface - Containers, CI/CD, Dependencies
 """
 
 INFRASTRUCTURE_RULES = [
-    # 32. dependencies
     {
         "id": "INF-001",
         "category": "dependencies",
@@ -23,7 +22,6 @@ INFRASTRUCTURE_RULES = [
         "severity": "MEDIUM",
         "cwe": "CWE-1104"
     },
-    # 33. ci-cd
     {
         "id": "INF-002",
         "category": "ci-cd",
@@ -43,7 +41,6 @@ INFRASTRUCTURE_RULES = [
         "severity": "CRITICAL",
         "cwe": "CWE-798"
     },
-    # 38. containers
     {
         "id": "INF-003",
         "category": "containers",

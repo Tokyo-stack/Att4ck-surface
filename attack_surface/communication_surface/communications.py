@@ -3,7 +3,6 @@ Communications Surface - Email, Notifications, Payments, Third-party
 """
 
 COMMUNICATIONS_RULES = [
-    # 15. payment-systems
     {
         "id": "COM-001",
         "category": "payment-systems",
@@ -26,7 +25,6 @@ COMMUNICATIONS_RULES = [
         "severity": "CRITICAL",
         "cwe": "CWE-312"
     },
-    # 17. email-flows
     {
         "id": "COM-002",
         "category": "email-flows",
@@ -47,7 +45,6 @@ COMMUNICATIONS_RULES = [
         "severity": "HIGH",
         "cwe": "CWE-77"
     },
-    # 31. third-party-integrations
     {
         "id": "COM-003",
         "category": "third-party-integrations",
