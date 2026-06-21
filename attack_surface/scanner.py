@@ -12,18 +12,53 @@ from typing import List, Dict, Optional
 from attack_surface.rules import RULES
 from attack_surface.risk_engine import get_risk
 
+
 # False positives to ignore
 FALSE_POSITIVES = {
-    "wp-admin/admin-ajax.php",
+    # Library files to ignore
     "jquery.min.js",
     "bootstrap.min.js",
-    "jquery.js",
-    "bootstrap.js",
-    "angular.js",
-    "react.js",
-    "vue.js",
-    "sweetalert.js",
-    "toastr.js",
+    "react.min.js",
+    "react-dom.min.js",
+    "vue.min.js",
+    "angular.min.js",
+    "lodash.min.js",
+    "underscore.min.js",
+    "moment.min.js",
+    "axios.min.js",
+    "axios.js",
+    "swiper.min.js",
+    "slick.min.js",
+    "owl.carousel.min.js",
+    "chart.min.js",
+    "d3.min.js",
+    "three.min.js",
+    
+    # Framework files
+    "vendor.js",
+    "chunk-vendors.js",
+    "chunk-common.js",
+    "app.js",
+    "main.js",
+    "runtime.js",
+    "polyfills.js",
+    
+    # CDN patterns
+    "cdnjs.cloudflare.com",
+    "unpkg.com",
+    "jsdelivr.net",
+    "cdn.jsdelivr.net",
+    "googleapis.com",
+    "gstatic.com",
+    "facebook.net",
+    "twitter.com",
+    
+    # Known safe patterns
+    "console.log",
+    "console.warn",
+    "console.error",
+    "// @license",
+    "/*! ",
 }
 
 
@@ -34,6 +69,82 @@ def safe_serializer(obj):
     if hasattr(obj, '__dict__'):
         return str(obj)
     return str(obj)
+
+
+def _preprocess_javascript(content: str) -> str:
+    """Preprocess JavaScript for better pattern matching"""
+    # Add semicolons between statements
+    content = re.sub(r'(;)(?=[^;])', r';\n', content)
+    # Add newlines after braces
+    content = re.sub(r'({)(?=[^{])', r'{\n', content)
+    content = re.sub(r'(})(?=[^}])', r'}\n', content)
+    # Add newlines after brackets
+    content = re.sub(r'(\[)(?=[^\[])', r'[\n', content)
+    content = re.sub(r'(\])(?=[^\]])', r']\n', content)
+    return content
+
+
+def _is_library_file(file_path: str, content: str) -> bool:
+    """Check if file is a known library"""
+    library_keywords = [
+        'jQuery', 'React', 'Vue', 'Angular', 'lodash',
+        'moment', 'axios', 'swiper', 'slick', 'chart.js',
+        'd3', 'three', 'bootstrap', 'foundation'
+    ]
+    
+    # Check file path for library indicators
+    path_library_indicators = [
+        'node_modules/',
+        'bower_components/',
+        'vendor/',
+        'lib/',
+        'assets/vendor/',
+        'static/vendor/',
+    ]
+    
+    for indicator in path_library_indicators:
+        if indicator in file_path:
+            return True
+    
+    # Check first few lines for library declarations
+    lines = content.splitlines()[:20]
+    header = '\n'.join(lines)
+    
+    for keyword in library_keywords:
+        if keyword in header:
+            return True
+    
+    # Check for hashed filenames (build artifacts)
+    if re.search(r'[a-f0-9]{10,}\.js$', file_path):
+        return True
+    
+    return False
+
+
+def _should_skip_line(line: str) -> bool:
+    """Check if a line should be skipped (false positive)"""
+    # Skip comments
+    if line.strip().startswith('//') or line.strip().startswith('/*'):
+        return True
+    
+    # Skip common false positive patterns
+    fp_patterns = [
+        'console.log', 'console.warn', 'console.error',
+        '// @ts-', '/* eslint-', '"use strict"',
+        'typeof window', 'typeof document',
+        'module.exports', 'exports.',
+        'require(', 'import {', 'import ',
+    ]
+    
+    for pattern in fp_patterns:
+        if pattern in line:
+            return True
+    
+    # Skip lines that are just braces or brackets
+    if line.strip() in ['{', '}', '(', ')', '[', ']', ';']:
+        return True
+    
+    return False
 
 
 def _process_single_file(args):
@@ -50,6 +161,11 @@ def _process_single_file(args):
         if not content.strip():
             return local_findings
 
+        # Check if this is a library file
+        if _is_library_file(file_path, content):
+            # Still scan but with lower confidence
+            pass
+
         # Pre-process minified JS
         if file_path.endswith(('.js', '.jsx', '.ts', '.tsx')):
             content = _preprocess_javascript(content)
@@ -58,7 +174,11 @@ def _process_single_file(args):
         for line_idx, raw_line in enumerate(lines, 1):
             line = raw_line.strip()
 
-            # Skip false positives
+            # Skip lines that are false positives
+            if _should_skip_line(line):
+                continue
+
+            # Check against false positives list
             if any(fp in line for fp in FALSE_POSITIVES):
                 continue
 
@@ -92,6 +212,10 @@ def _process_single_file(args):
                 if risk_info:
                     severity = risk_info[0]
 
+            # If it's a library file, lower confidence
+            if _is_library_file(file_path, content):
+                confidence = min(confidence - 20, 50)
+
             local_findings.append({
                 "finding_id": f"AS-{rule.category}-{line_idx}",
                 "cwe": getattr(rule, 'cwe', 'N/A'),
@@ -111,19 +235,6 @@ def _process_single_file(args):
         print(f"[SCAN ERROR] {file_path}: {e}")
 
     return local_findings
-
-
-def _preprocess_javascript(content: str) -> str:
-    """Preprocess JavaScript for better pattern matching"""
-    # Add semicolons between statements
-    content = re.sub(r'(;)(?=[^;])', r';\n', content)
-    # Add newlines after braces
-    content = re.sub(r'({)(?=[^{])', r'{\n', content)
-    content = re.sub(r'(})(?=[^}])', r'}\n', content)
-    # Add newlines after brackets
-    content = re.sub(r'(\[)(?=[^\[])', r'[\n', content)
-    content = re.sub(r'(\])(?=[^\]])', r']\n', content)
-    return content
 
 
 class SurfaceScanner:
@@ -196,6 +307,28 @@ class SurfaceScanner:
 
     def _should_scan_file(self, file_path: str) -> bool:
         """Check if file should be scanned"""
+        # Skip known library paths
+        lib_patterns = [
+            'node_modules/',
+            'bower_components/',
+            'vendor/',
+            'lib/',
+            'assets/vendor/',
+            'static/vendor/',
+        ]
+        
+        for pattern in lib_patterns:
+            if pattern in file_path:
+                return False
+        
+        # Skip minified files
+        if '.min.js' in file_path or '.min.css' in file_path:
+            return False
+        
+        # Skip hashed filenames (build artifacts)
+        if re.search(r'[a-f0-9]{10,}\.js$', file_path):
+            return False
+        
         # Check extension
         ext = os.path.splitext(file_path)[1].lower()
         if ext not in self.supported_exts:
@@ -243,6 +376,9 @@ class SurfaceScanner:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             
+            # Drop old table if exists to fix schema
+            cursor.execute("DROP TABLE IF EXISTS security_findings")
+            
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS security_findings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -260,8 +396,6 @@ class SurfaceScanner:
                     timestamp TEXT
                 )
             """)
-            
-            cursor.execute("DELETE FROM security_findings")
             
             for f in self.findings:
                 cursor.execute("""

@@ -5,15 +5,11 @@ Rules Module - Defines all scanning rules
 import re
 from typing import List
 
-# Import from your actual structure
-from attack_surface.iam_surface.iam import IAM_RULES
-from attack_surface.input_surface.input import INPUT_RULES
-from attack_surface.api_surface.api import API_RULES
-from attack_surface.file_surface.file import FILE_RULES
-from attack_surface.frontend_surface.frontend import FRONTEND_RULES
-from attack_surface.secrets_surface.secrets import SECRETS_RULES
-from attack_surface.infrastructure_surface.infrastructure import INFRASTRUCTURE_RULES
-from attack_surface.communication_surface.communications import COMMUNICATIONS_RULES
+# Import from your renamed folder
+from attack_surface.attack_rules.core_application import APPLICATION_RULES
+from attack_surface.attack_rules.core_network import NETWORK_RULES
+from attack_surface.attack_rules.core_operations import OPERATIONS_RULES
+from attack_surface.attack_rules.core_secrets import SECRETS_RULES
 
 
 class Rule:
@@ -60,19 +56,19 @@ class Rule:
                 print(f"[WARN] Invalid sanitizer regex '{p}' in {category}: {e}")
 
 
-def _build_rules(raw_rules: List[dict]) -> List[Rule]:
+def _build_rules(raw_rules: List[dict], category_name: str) -> List[Rule]:
     """Convert raw rule dictionaries to Rule objects"""
     built = []
     for r in raw_rules:
         built.append(
             Rule(
-                category=r.get("category", "UNKNOWN"),
-                name=r.get("name", "Unnamed Rule"),
+                category=category_name,
+                name=r.get("name", category_name),
                 file_exts=r.get("file_exts", []),
                 vuln_patterns=r.get("vuln_patterns", []),
                 sanitizer_patterns=r.get("sanitizer_patterns", []),
-                vuln_desc=r.get("description", ""),
-                safe_desc=f"Securely implemented: {r.get('name', '')}",
+                vuln_desc=r.get("vuln_desc", ""),
+                safe_desc=r.get("safe_desc", ""),
                 severity=r.get("severity", "MEDIUM"),
                 confidence=r.get("confidence", 70),
                 cwe=r.get("cwe", "N/A"),
@@ -84,14 +80,10 @@ def _build_rules(raw_rules: List[dict]) -> List[Rule]:
 
 # Combined rules from all catalogs
 ALL_RULES = (
-    _build_rules(IAM_RULES) +
-    _build_rules(INPUT_RULES) +
-    _build_rules(API_RULES) +
-    _build_rules(FILE_RULES) +
-    _build_rules(FRONTEND_RULES) +
-    _build_rules(SECRETS_RULES) +
-    _build_rules(INFRASTRUCTURE_RULES) +
-    _build_rules(COMMUNICATIONS_RULES)
+    _build_rules(APPLICATION_RULES, "APPLICATION") +
+    _build_rules(NETWORK_RULES, "NETWORK") +
+    _build_rules(OPERATIONS_RULES, "OPERATIONS") +
+    _build_rules(SECRETS_RULES, "SECRETS")
 )
 
 # Keep RULES for backward compatibility
