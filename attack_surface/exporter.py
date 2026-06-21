@@ -145,9 +145,113 @@ def export_to_html(findings: List[Dict], output_dir: str = "output") -> str:
     html_path = os.path.join(output_dir, "report.html")
     
     try:
-        html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>ATT4ck Surface Security Report</
+        # Build HTML content as a list of strings to avoid f-string issues
+        html_lines = [
+            '<!DOCTYPE html>',
+            '<html>',
+            '<head>',
+            '    <meta charset="UTF-8">',
+            '    <title>ATT4ck Surface Security Report</title>',
+            '    <style>',
+            '        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }',
+            '        h1 { color: #333; }',
+            '        .summary { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; }',
+            '        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }',
+            '        th { background: #4CAF50; color: white; padding: 12px; text-align: left; }',
+            '        td { padding: 10px; border-bottom: 1px solid #ddd; }',
+            '        tr:hover { background: #f5f5f5; }',
+            '        .critical { color: #ff0000; font-weight: bold; }',
+            '        .high { color: #ff6b00; font-weight: bold; }',
+            '        .medium { color: #ffa500; font-weight: bold; }',
+            '        .low { color: #ffff00; font-weight: bold; }',
+            '        .info { color: #808080; }',
+            '        .timestamp { color: #666; font-size: 0.9em; }',
+            '        .status-vulnerable { background: #ffebee; }',
+            '        .status-sanitized { background: #e8f5e9; }',
+            '    </style>',
+            '</head>',
+            '<body>',
+            '    <h1>ATT4ck Surface Security Report</h1>',
+            '    <div class="summary">',
+            '        <h2>Scan Summary</h2>',
+            f'        <p><strong>Total Findings:</strong> {len(findings)}</p>',
+            f'        <p><strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>',
+            f'        <p><strong>Critical:</strong> {len([f for f in findings if f.get("severity") == "CRITICAL"])}</p>',
+            f'        <p><strong>High:</strong> {len([f for f in findings if f.get("severity") == "HIGH"])}</p>',
+            f'        <p><strong>Medium:</strong> {len([f for f in findings if f.get("severity") == "MEDIUM"])}</p>',
+            f'        <p><strong>Low:</strong> {len([f for f in findings if f.get("severity") == "LOW"])}</p>',
+            '    </div>',
+            '    <h2>Detailed Findings</h2>',
+            '    <table>',
+            '        <thead>',
+            '            <tr>',
+            '                <th>Severity</th>',
+            '                <th>Category</th>',
+            '                <th>Name</th>',
+            '                <th>File</th>',
+            '                <th>Line</th>',
+            '                <th>Status</th>',
+            '            </tr>',
+            '        </thead>',
+            '        <tbody>'
+        ]
+        
+        # Add each finding as a table row
+        for f in findings:
+            severity = f.get('severity', 'MEDIUM')
+            severity_class = severity.lower()
+            status = f.get('status', 'UNKNOWN')
+            status_class = f"status-{status.lower()}"
+            
+            html_lines.append(f'''
+            <tr class="{status_class}">
+                <td><span class="{severity_class}">{severity}</span></td>
+                <td>{f.get('category', 'N/A')}</td>
+                <td>{f.get('name', 'N/A')}</td>
+                <td>{f.get('file', 'N/A')}</td>
+                <td>{f.get('line', 'N/A')}</td>
+                <td>{status}</td>
+            </tr>
+            ''')
+        
+        # Close HTML
+        html_lines.extend([
+            '        </tbody>',
+            '    </table>',
+            '</body>',
+            '</html>'
+        ])
+        
+        # Join and write
+        html_content = '\n'.join(html_lines)
+        
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        
+        print(f"[+] Exported HTML report to {html_path}")
+        return html_path
+        
+    except Exception as e:
+        print(f"[!] Error exporting to HTML: {e}")
+        return ""
+
+
+def export_results(findings: List[Dict], output_dir: str = "output") -> dict:
+    """
+    Export findings to all formats
+    
+    Args:
+        findings: List of finding dictionaries
+        output_dir: Output directory
+        
+    Returns:
+        Dictionary with paths to exported files
+    """
+    results = {
+        "json": export_to_json(findings, output_dir),
+        "sqlite": export_to_sqlite(findings, output_dir),
+        "csv": export_to_csv(findings, output_dir),
+        "html": export_to_html(findings, output_dir),
+    }
+    
+    return results

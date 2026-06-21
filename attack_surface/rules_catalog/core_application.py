@@ -1,3 +1,121 @@
+APPLICATION_RULES = [
+    # === JAVASCRIPT VULNERABILITIES ===
+    {
+        "category": "xss",
+        "name": "DOM XSS - innerHTML",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".html", ".htm"],
+        "vuln_patterns": [
+            r"\.innerHTML\s*=",
+            r"\.outerHTML\s*=",
+            r"document\.write\s*\(",
+            r"\.insertAdjacentHTML\s*\(",
+            r"dangerouslySetInnerHTML",
+            r"v-html\s*=",
+        ],
+        "sanitizer_patterns": [
+            r"textContent\s*=",
+            r"innerText\s*=",
+            r"DOMPurify",
+            r"sanitize",
+            r"escape\s*\(",
+        ],
+        "vuln_desc": "DOM XSS via unsafe DOM manipulation",
+        "safe_desc": "Using safe DOM methods",
+        "severity": "HIGH",
+        "confidence": 85,
+        "cwe": "CWE-79"
+    },
+    {
+        "category": "secrets",
+        "name": "Hardcoded API Keys in JavaScript",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx"],
+        "vuln_patterns": [
+            r"api[_-]?key\s*[:=]\s*['\"][^'\"]+['\"]",
+            r"secret\s*[:=]\s*['\"][^'\"]+['\"]",
+            r"token\s*[:=]\s*['\"][^'\"]+['\"]",
+            r"password\s*[:=]\s*['\"][^'\"]+['\"]",
+            r"AKIA[0-9A-Z]{16}",
+            r"sk-[a-zA-Z0-9]{20,}",
+        ],
+        "sanitizer_patterns": [
+            r"process\.env\.",
+            r"import\.meta\.env",
+            r"window\.env",
+            r"REACT_APP_",
+            r"NEXT_PUBLIC_",
+        ],
+        "vuln_desc": "Hardcoded API key or secret in client code",
+        "safe_desc": "Using environment variables for secrets",
+        "severity": "CRITICAL",
+        "confidence": 90,
+        "cwe": "CWE-798"
+    },
+    {
+        "category": "network",
+        "name": "Insecure HTTP Requests",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx", ".html"],
+        "vuln_patterns": [
+            r"fetch\s*\(\s*['\"]http://",
+            r"axios\.(get|post)\s*\(\s*['\"]http://",
+            r"\$\.(get|post|ajax)\s*\(\s*['\"]http://",
+            r"new\s+WebSocket\s*\(\s*['\"]ws://",
+            r"XMLHttpRequest.*http://",
+        ],
+        "sanitizer_patterns": [
+            r"https://",
+            r"wss://",
+        ],
+        "vuln_desc": "Insecure HTTP or WebSocket connection",
+        "safe_desc": "Using secure HTTPS/WSS",
+        "severity": "MEDIUM",
+        "confidence": 75,
+        "cwe": "CWE-319"
+    },
+    {
+        "category": "codeExecution",
+        "name": "Dangerous Code Execution",
+        "file_exts": [".js", ".jsx", ".ts", ".tsx"],
+        "vuln_patterns": [
+            r"eval\s*\(",
+            r"new\s+Function\s*\(",
+            r"Function\s*\(",
+            r"setTimeout\s*\(\s*['\"]",
+            r"setInterval\s*\(\s*['\"]",
+        ],
+        "sanitizer_patterns": [
+            r"JSON\.parse",
+            r"validator",
+            r"sanitize",
+        ],
+        "vuln_desc": "Dangerous code execution (eval, Function)",
+        "safe_desc": "Using safe alternatives",
+        "severity": "CRITICAL",
+        "confidence": 90,
+        "cwe": "CWE-94"
+    },
+    {
+        "category": "cors",
+        "name": "Wildcard CORS Configuration",
+        "file_exts": [".js", ".json", ".py"],
+        "vuln_patterns": [
+            r"Access-Control-Allow-Origin\s*:\s*\*",
+            r"origin\s*:\s*['\"]\*['\"]",
+            r"allow_origins\s*=\s*\[['\"]\*['\"]\]",
+        ],
+        "sanitizer_patterns": [
+            r"Access-Control-Allow-Origin:\s*https://",
+            r"origin:\s*['\"][^'\"]+['\"]",
+        ],
+        "vuln_desc": "Wildcard CORS allows any domain",
+        "safe_desc": "CORS restricted to specific domains",
+        "severity": "MEDIUM",
+        "confidence": 80,
+        "cwe": "CWE-346"
+    },
+    
+    # === ORIGINAL RULES BELOW ===
+    # ... keep your existing rules here ...
+]
 """
 Application Rules - Authentication, Authorization, Input Validation, etc.
 """
