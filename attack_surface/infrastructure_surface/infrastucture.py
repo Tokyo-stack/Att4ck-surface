@@ -1,5 +1,5 @@
 """
-Infrastructure Surface - Containers, CI/CD, Dependencies, DNS
+Infrastructure Surface - Containers, CI/CD, Dependencies
 """
 
 INFRASTRUCTURE_RULES = [
@@ -14,13 +14,11 @@ INFRASTRUCTURE_RULES = [
             r"^[A-Za-z0-9_\-]+==latest",
             r"\"[A-Za-z0-9_\-]+\":\s*\"\*\"",
             r"^[A-Za-z0-9_\-]+>=.*$",
-            r"^[A-Za-z0-9_\-]+<.*$",
         ],
         "sanitizer_patterns": [
             r"==[0-9\.]+",
             r"\"[0-9\.]+\"",
             r"~=[0-9\.]+",
-            r"^[0-9\.]+$",
         ],
         "severity": "MEDIUM",
         "cwe": "CWE-1104"
@@ -36,14 +34,11 @@ INFRASTRUCTURE_RULES = [
             r"github_token\s*:\s*[A-Za-z0-9]+",
             r"aws_secret\s*:\s*[A-Za-z0-9]+",
             r"secrets\s*:\s*['\"][^'\"]+['\"]",
-            r"ACCESS_TOKEN",
-            r"GH_TOKEN",
         ],
         "sanitizer_patterns": [
             r"secrets\.",
             r"\$\{\{.*\}\}",
             r"env\.",
-            r"SECRET_",
         ],
         "severity": "CRITICAL",
         "cwe": "CWE-798"
@@ -59,17 +54,13 @@ INFRASTRUCTURE_RULES = [
             r"FROM.*latest",
             r"(?i)^USER\s+root",
             r"RUN\s+.*sudo",
-            r"ADD\s+.*\.tar\.gz",
         ],
         "sanitizer_patterns": [
             r"FROM.*@sha256:",
             r"USER\s+[A-Za-z0-9_\-]+",
             r"USER\s+[0-9]+",
-            r"FROM.*:[0-9]+\.[0-9]+\.[0-9]+",
         ],
         "severity": "HIGH",
         "cwe": "CWE-269"
     },
-    # 35. subdomains - already in api.py
-    # 36. dns - already in api.py
 ]

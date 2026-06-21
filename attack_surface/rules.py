@@ -5,14 +5,15 @@ Rules Module - Defines all scanning rules
 import re
 from typing import List
 
-from attack_surface.rules_catalog.iam import IAM_RULES
-from attack_surface.rules_catalog.input import INPUT_RULES
-from attack_surface.rules_catalog.api import API_RULES
-from attack_surface.rules_catalog.file import FILE_RULES
-from attack_surface.rules_catalog.frontend import FRONTEND_RULES
-from attack_surface.rules_catalog.secrets import SECRETS_RULES
-from attack_surface.rules_catalog.infrastructure import INFRASTRUCTURE_RULES
-from attack_surface.rules_catalog.communications import COMMUNICATIONS_RULES
+# Import from your actual structure
+from attack_surface.iam_surface.iam import IAM_RULES
+from attack_surface.input_surface.input import INPUT_RULES
+from attack_surface.api_surface.api import API_RULES
+from attack_surface.file_surface.file import FILE_RULES
+from attack_surface.frontend_surface.frontend import FRONTEND_RULES
+from attack_surface.secrets_surface.secrets import SECRETS_RULES
+from attack_surface.infrastructure_surface.infrastructure import INFRASTRUCTURE_RULES
+from attack_surface.communication_surface.communications import COMMUNICATIONS_RULES
 
 
 class Rule:
