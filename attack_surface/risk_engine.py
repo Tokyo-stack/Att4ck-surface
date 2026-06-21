@@ -10,6 +10,16 @@ FEATURE_MAPPING = {
     "7": {"name": "Full Source Code Review", "categories": None}
 }
 
+# Severity and confidence defaults by top-level category.
+# Each rule already carries its own severity/confidence, but this
+# provides a fallback when only the category name is available.
+CATEGORY_SEVERITY = {
+    "APPLICATION": ("HIGH", 85),
+    "NETWORK":     ("HIGH", 80),
+    "OPERATIONS":  ("MEDIUM", 75),
+    "SECRETS":     ("CRITICAL", 90),
+}
+
 
 def get_risk(category):
     """

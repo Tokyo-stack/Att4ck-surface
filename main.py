@@ -2,7 +2,6 @@ import sys
 import os
 import shutil
 import tempfile
-import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -164,7 +163,8 @@ def scan_web_url(url, rules):
 # OUTPUT
 # ----------------------------
 def save_output(results):
-    output_dir = os.path.join(os.getcwd(), "output")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, "output")
     os.makedirs(output_dir, exist_ok=True)
 
     export_results(results, output_dir)
@@ -172,7 +172,7 @@ def save_output(results):
     console.print(Panel(
         f"[green]Scan Complete[/green]\n"
         f"Findings: {len(results)}\n"
-        f"Saved → output/findings.json",
+        f"Saved -> output/findings.json",
         title="RESULTS"
     ))
 

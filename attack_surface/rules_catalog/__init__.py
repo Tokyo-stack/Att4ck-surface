@@ -1,0 +1,1 @@
+# rules_catalog subpackage

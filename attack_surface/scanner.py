@@ -1,7 +1,6 @@
 import os
 import concurrent.futures
 from attack_surface.rules import RULES
-from attack_surface.risk_engine import get_risk
 
 
 FALSE_POSITIVES = {
@@ -45,7 +44,9 @@ def _process_single_file(args):
                 for c in context_window
             )
 
-            severity, confidence = get_risk(rule.category)
+            # Use the rule's own severity/confidence (already set from catalog)
+            severity = rule.severity
+            confidence = rule.confidence
 
             local_findings.append({
                 "finding_id": f"AS-{rule.category}-{line_idx}",
@@ -103,7 +104,11 @@ class SurfaceScanner:
         if not tasks:
             return self.findings
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        # ThreadPoolExecutor avoids Windows ProcessPoolExecutor issues:
+        # - No pickle serialization needed (compiled regex in Rule objects can't be pickled)
+        # - No subprocess spawning issues without __main__ guard
+        # - File I/O + regex matching is well-suited for threads
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             results = executor.map(_process_single_file, tasks)
 
         for r in results:
