@@ -21,6 +21,7 @@ from attack_surface.banner import print_banner, print_startup, print_environment
 from attack_surface.scanner import SurfaceScanner, verify_endpoint
 from attack_surface.web_crawler import WebCrawler
 from attack_surface.exporter import export_results
+from attack_surface.xss_scanner import XSSScanner, XSS_PAYLOADS, XSS_PARAMETERS
 
 console = Console()
 
@@ -360,9 +361,9 @@ FEATURES = {
     },
     "6": {
         "name": "XSS & Parameter Mapping",
-        "description": "Find XSS vulnerabilities: DOM XSS, reflected XSS, parameter injection",
-        "patterns": XSS_PATTERNS,
-        "severity": "HIGH"
+        "description": "Comprehensive XSS testing with 100+ payloads",
+        "patterns": XSS_PAYLOADS,  # Use the full payload dictionary
+        "severity": "CRITICAL"
     },
     "7": {
         "name": "Full Scan",
@@ -417,6 +418,15 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
     all_findings = []
     found_items = set()
     verified_endpoints = set()
+
+    if all_findings:
+        console.print(f"[green]Found {len(all_findings)} verified findings[/green]")
+        export_results(all_findings, "output")
+    else:
+        console.print("[yellow]No verified findings found[/yellow]")
+        export_results([], "output")
+
+        return all_findings
     
     try:
         # Step 1: Get HTML content

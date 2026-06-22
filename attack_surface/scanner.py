@@ -525,6 +525,7 @@ class SurfaceScanner:
         self.findings = []
         self.skipped_count = 0
         self.scanned_count = 0
+        # mode is not needed here - it's handled in main.py
 
         self.supported_exts = {
             '.js', '.jsx', '.ts', '.tsx', '.html', '.htm',
