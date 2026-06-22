@@ -58,3 +58,10 @@ debug_*.py
 temp/
 tmp/
 *.tmp
+# Debug files
+check.py
+debug_scan.py
+filter.py
+findings.db
+findings.json
+fix_init.py
