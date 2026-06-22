@@ -46,14 +46,62 @@ The project has been split into a clean, modular structure preventing bloated fi
 
 ```text
 ATT4ckSurface/
-├── attack_surface/
-│   ├── __init__.py      # Package entry point
-│   ├── banner.py        # Terminal formatting and logo banner
-│   ├── rules.py         # The 40 attack surface rules
-│   └── scanner.py       # Crawler and matching engine
-├── main.py              # CLI Executable entry point
-├── test_sandbox/        # Sandbox directory for testing matches
-└── README.md            # Project guide
+│
+├── attack_surface/                    # Core package
+│   ├── __init__.py                    # Package entry point
+│   ├── banner.py                      # Terminal formatting & logo
+│   ├── rules.py                       # 40+ attack surface rules
+│   ├── scanner.py                     # Core scanning engine
+│   ├── xss_scanner.py                 # Comprehensive XSS testing
+│   ├── web_crawler.py                 # Web crawling & endpoint discovery
+│   ├── exporter.py                    # Multi-format export
+│   ├── risk_engine.py                 # Risk classification engine
+│   │
+│   ├── iam_surface/                   # IAM attack surfaces
+│   │   ├── __init__.py
+│   │   └── iam.py
+│   │
+│   ├── input_surface/                 # Input validation surfaces
+│   │   ├── __init__.py
+│   │   └── input.py
+│   │
+│   ├── api_surface/                   # API security surfaces
+│   │   ├── __init__.py
+│   │   └── api.py
+│   │
+│   ├── file_surface/                  # File operation surfaces
+│   │   ├── __init__.py
+│   │   └── file.py
+│   │
+│   ├── frontend_surface/              # Frontend security surfaces
+│   │   ├── __init__.py
+│   │   └── frontend.py
+│   │
+│   ├── secret_surface/                # Secrets detection surfaces
+│   │   ├── __init__.py
+│   │   └── secret.py
+│   │
+│   ├── infrastructure_surface/        # Infrastructure security
+│   │   ├── __init__.py
+│   │   └── infrastructure.py
+│   │
+│   └── communication_surface/         # Communication security
+│       ├── __init__.py
+│       └── communications.py
+│
+├── output/                            # Scan results (auto-created)
+│   ├── findings.json                  # JSON format
+│   ├── findings.db                    # SQLite database
+│   ├── findings.csv                   # CSV format
+│   └── report.html                    # HTML report
+│
+├── test_sandbox/                      # Test environment
+│   └── (vulnerable test files)
+│
+├── main.py                            # CLI entry point
+├── requirements.txt                   # Python dependencies
+├── .gitignore                         # Git ignore rules
+└── README.md                          # This file
 ```
 
 ## 3. List of Attack Surfaces
