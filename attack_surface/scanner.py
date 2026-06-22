@@ -10,7 +10,6 @@ import concurrent.futures
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Set, Tuple
-from urllib.parse import urljoin, urlparse
 
 from attack_surface.rules import RULES
 from attack_surface.risk_engine import get_risk
@@ -20,14 +19,12 @@ from attack_surface.risk_engine import get_risk
 # COMPLETE FALSE POSITIVE FILTERS
 # ============================================================================
 
-# Skip these directories entirely
 SKIP_DIRS = {
     '.next', '_next', 'out', 'dist', 'build', 'public', 'static',
     'assets', '.cache', 'node_modules', 'bower_components', 'vendor',
     'venv', '.venv', 'env', '.env', '__pycache__', '.git', '.idea', '.vscode'
 }
 
-# Skip files containing these patterns (framework code)
 SKIP_FILE_PATTERNS = [
     r'jquery', r'bootstrap', r'react', r'vue', r'angular', r'lodash',
     r'underscore', r'moment', r'axios', r'swiper', r'slick', r'chart',
@@ -39,7 +36,6 @@ SKIP_FILE_PATTERNS = [
     r'^[a-z0-9_-]{8,}-[a-z0-9_-]*\.js$',
 ]
 
-# Skip lines containing these patterns (false positive lines)
 SKIP_LINE_PATTERNS = [
     r'console\.', r'// @ts-', r'// eslint-', r'/\* eslint-',
     r'"use strict"', r"'use strict'", r'module\.exports',
@@ -73,21 +69,15 @@ SKIP_LINE_PATTERNS = [
     r'__vite_', r'__rollup_', r'__esbuild_',
 ]
 
-# ============================================================================
-# COMPLETE VULNERABILITY PATTERNS - ALL 40 ATTACK SURFACES
-# ============================================================================
-
 VULN_PATTERNS = {
     'authentication': [
         (r'hashlib\.md5\s*\(', 'Weak Hashing - MD5'),
         (r'hashlib\.sha1\s*\(', 'Weak Hashing - SHA1'),
         (r'password\s*=\s*[\'"]\S+[\'"]', 'Hardcoded Password'),
-        (r'crypto\.createHash\s*\(\s*[\'"]md5[\'"]', 'Weak Hashing - MD5 (Node)'),
     ],
     'authorization': [
         (r'@app\.route\s*\([^)]*\)(?!.*@login_required)', 'Missing Auth - Flask'),
         (r'app\.(get|post|put|delete)\s*\([^)]*\)(?!.*@login_required)', 'Missing Auth - Flask'),
-        (r'router\.(get|post|put|delete)\s*\([^)]*\)(?!.*auth)', 'Missing Auth - Express'),
         (r'/admin.*(?!.*auth)', 'Exposed Admin Route'),
     ],
     'user-inputs': [
@@ -98,36 +88,20 @@ VULN_PATTERNS = {
         (r'subprocess\.(Popen|run|call)\s*\(', 'Code Execution - subprocess'),
         (r'new\s+Function\s*\(', 'Code Execution - Function'),
     ],
-    'search-parameters': [
-        (r'request\.args\.get\s*\(\s*[\'"]q[\'"]', 'Reflected XSS - search'),
-        (r'req\.query\.search', 'Reflected XSS - search'),
-        (r'location\.search', 'Reflected XSS - location.search'),
-        (r'\$_GET\[\'q\'\]', 'Reflected XSS - $_GET'),
-    ],
-    'id-parameters': [
-        (r'SELECT.*\s+WHERE\s+id\s*=\s*[\'"]?\s*\+\s*\w+', 'SQLi - ID concat'),
-        (r'WHERE\s+id\s*=\s*[\'"]?\s*\$', 'SQLi - ID $'),
-        (r'request\.(args|form)\.get\s*\(\s*[\'"]id[\'"]', 'ID Parameter - unvalidated'),
-        (r'req\.query\.id', 'ID Parameter - req.query'),
-        (r'req\.params\.id', 'ID Parameter - req.params'),
-    ],
     'api-endpoints': [
         (r'/api/[^"\']+', 'API Endpoint'),
         (r'/rest/[^"\']+', 'REST API'),
         (r'/v\d+/\S+', 'API Version'),
-        (r'/service/\S+', 'Service API'),
     ],
     'graphql': [
         (r'gql\s*`[^`]*\$\{', 'GraphQL Injection'),
         (r'graphql\s*`[^`]*\$\{', 'GraphQL Injection'),
         (r'\.query\s*\(\s*`[^`]*\$\{', 'GraphQL Query Injection'),
-        (r'\.mutate\s*\(\s*`[^`]*\$\{', 'GraphQL Mutation Injection'),
     ],
     'webhooks': [
         (r'webhook[^"\']*', 'Webhook Endpoint'),
         (r'stripe_webhook', 'Stripe Webhook'),
         (r'github_webhook', 'GitHub Webhook'),
-        (r'webhook_handler', 'Webhook Handler'),
     ],
     'file-uploads': [
         (r'request\.files', 'File Upload - request.files'),
@@ -141,56 +115,30 @@ VULN_PATTERNS = {
         (r'send_from_directory\s*\(', 'File Download - send_from_directory'),
         (r'fs\.readFile\s*\(', 'File Download - readFile'),
         (r'file_get_contents\s*\(', 'File Download - file_get_contents'),
-        (r'readfile\s*\(', 'File Download - readfile'),
     ],
     'path-traversal': [
         (r'\.\./\.\./', 'Path Traversal'),
         (r'\.\.\\\.\.\\', 'Path Traversal - Windows'),
-        (r'\.\.\/\.\.\/\.\.\/', 'Path Traversal - deep'),
         (r'os\.path\.join\s*\([^,]+,\s*[\'"]\.\.', 'Path Traversal - os.path.join'),
         (r'path\.join\s*\([^,]+,\s*[\'"]\.\.', 'Path Traversal - path.join'),
-        (r'open\s*\([^,]*\.\.\/\.\.', 'Path Traversal - open'),
     ],
     'admin-portals': [
         (r'/admin[^"\']*', 'Admin Portal'),
         (r'/administrator[^"\']*', 'Admin Portal'),
         (r'/dashboard[^"\']*', 'Dashboard'),
         (r'/control-panel[^"\']*', 'Control Panel'),
-        (r'/superadmin[^"\']*', 'Super Admin'),
     ],
     'payment-systems': [
         (r'card_number', 'Credit Card - card_number'),
         (r'cvv', 'Credit Card - CVV'),
         (r'credit_card', 'Credit Card - credit_card'),
         (r'expiry_date', 'Credit Card - expiry_date'),
-        (r'cc_number', 'Credit Card - cc_number'),
     ],
     'oauth-sso': [
         (r'/oauth[^"\']*', 'OAuth Endpoint'),
         (r'/sso[^"\']*', 'SSO Endpoint'),
         (r'/saml[^"\']*', 'SAML Endpoint'),
         (r'/oidc[^"\']*', 'OIDC Endpoint'),
-        (r'/callback[^"\']*', 'Callback Endpoint'),
-    ],
-    'email-flows': [
-        (r'sendmail\s*\(', 'SMTP - sendmail'),
-        (r'smtplib', 'SMTP - smtplib'),
-        (r'nodemailer', 'SMTP - nodemailer'),
-        (r'mail\s*\(', 'SMTP - mail'),
-        (r'send_email\s*\(', 'SMTP - send_email'),
-    ],
-    'frontend-assets': [
-        (r'<script\s+src=[\'"]https://cdn\.[^\'"]+[\'"](?!.*integrity)', 'Missing SRI - CDN'),
-        (r'<link\s+rel=[\'"]stylesheet[\'"]\s+href=[\'"]https://cdn\.[^\'"]+[\'"](?!.*integrity)', 'Missing SRI - CSS'),
-        (r'src=[\'"]//cdn\.[^\'"]+[\'"](?!.*integrity)', 'Missing SRI - CDN'),
-    ],
-    'javascript-analysis': [
-        (r'\.innerHTML\s*=', 'DOM XSS - innerHTML'),
-        (r'\.outerHTML\s*=', 'DOM XSS - outerHTML'),
-        (r'document\.write\s*\(', 'DOM XSS - document.write'),
-        (r'dangerouslySetInnerHTML', 'React XSS - dangerouslySetInnerHTML'),
-        (r'v-html\s*=', 'Vue XSS - v-html'),
-        (r'ng-bind-html\s*=', 'Angular XSS - ng-bind-html'),
     ],
     'secrets-config': [
         (r'api[_-]?key\s*[:=]\s*[\'"]\S+[\'"]', 'API Key Hardcoded'),
@@ -207,7 +155,6 @@ VULN_PATTERNS = {
         (r'DB_PASSWORD\s*=\s*\S+', 'DB Password in .env'),
         (r'SECRET_KEY\s*=\s*\S+', 'Secret Key in .env'),
         (r'API_KEY\s*=\s*\S+', 'API Key in .env'),
-        (r'TOKEN\s*=\s*\S+', 'Token in .env'),
         (r'\.env\b', 'Environment File'),
     ],
     'cloud-storage': [
@@ -215,30 +162,23 @@ VULN_PATTERNS = {
         (r'public_read', 'S3 Public Read'),
         (r'AllowedOrigins\s*:\s*\*', 'S3 CORS Wildcard'),
         (r'aws_s3_bucket', 'AWS S3 Bucket'),
-        (r'S3_BUCKET', 'S3 Bucket'),
     ],
     'database': [
         (r'\.execute\s*\(\s*[\'"].*[\'"]\s*%', 'SQL Injection - execute %'),
         (r'\.execute\s*\(\s*f[\'"].*\{', 'SQL Injection - f-string'),
         (r'SELECT.*\s*\+\s*.*\s*FROM', 'SQL Injection - concat'),
-        (r'INSERT.*\s*\+\s*.*\s*INTO', 'SQL Injection - INSERT'),
-        (r'UPDATE.*\s*\+\s*.*\s*SET', 'SQL Injection - UPDATE'),
-        (r'DELETE.*\s*\+\s*.*\s*FROM', 'SQL Injection - DELETE'),
         (r'mongodb://\S+', 'MongoDB Connection'),
         (r'mysql://\S+', 'MySQL Connection'),
         (r'postgres://\S+', 'PostgreSQL Connection'),
-        (r'redis://\S+', 'Redis Connection'),
     ],
     'message-queues': [
         (r'pickle\.loads\s*\(', 'Insecure Deserialization - pickle'),
         (r'yaml\.load\s*\(', 'Insecure Deserialization - yaml'),
-        (r'serialize\.unserialize\s*\(', 'Insecure Deserialization - PHP'),
     ],
     'logging': [
         (r'logger\.(info|debug|error)\(.*password', 'Password in Logs'),
         (r'console\.log\(.*token', 'Token in Console'),
         (r'console\.log\(.*secret', 'Secret in Console'),
-        (r'console\.log\(.*password', 'Password in Console'),
     ],
     'monitoring': [
         (r'/metrics[^"\']*', 'Metrics Endpoint'),
@@ -246,7 +186,6 @@ VULN_PATTERNS = {
         (r'/health[^"\']*', 'Health Check'),
         (r'/healthz[^"\']*', 'Health Check'),
         (r'/status[^"\']*', 'Status Endpoint'),
-        (r'/prometheus[^"\']*', 'Prometheus Endpoint'),
     ],
     'debug-endpoints': [
         (r'debug\s*=\s*True', 'Debug Mode - True'),
@@ -265,12 +204,10 @@ VULN_PATTERNS = {
         (r'/redoc[^"\']*', 'ReDoc'),
         (r'/openapi[^"\']*', 'OpenAPI'),
         (r'/api-docs[^"\']*', 'API Docs'),
-        (r'/apidocs[^"\']*', 'API Docs'),
     ],
     'dependencies': [
         (r'[A-Za-z0-9_\-]+==latest', 'Unpinned - latest'),
         (r'"[A-Za-z0-9_\-]+":\s*"\*"', 'Unpinned - *'),
-        (r'[A-Za-z0-9_\-]+>=.*$', 'Unpinned - >='),
     ],
     'ci-cd': [
         (r'github_token\s*:\s*\S+', 'GitHub Token in CI'),
@@ -278,7 +215,6 @@ VULN_PATTERNS = {
         (r'secrets\s*:\s*[\'"]\S+[\'"]', 'Secrets in CI'),
         (r'Jenkinsfile', 'Jenkinsfile'),
         (r'\.github/', 'GitHub Actions'),
-        (r'\.gitlab-ci\.yml', 'GitLab CI'),
     ],
     'containers': [
         (r'FROM.*latest', 'Docker - latest tag'),
@@ -294,8 +230,6 @@ VULN_PATTERNS = {
         (r'origin\s*:\s*[\'"]\*[\'"]', 'CORS Wildcard'),
         (r'X-Powered-By', 'Server Info - X-Powered-By'),
         (r'Server:\s*\S+', 'Server Info'),
-        (r'\.htaccess', '.htaccess File'),
-        (r'web\.config', 'web.config File'),
     ],
     'backups': [
         (r'\.bak$', 'Backup File'),
@@ -305,13 +239,10 @@ VULN_PATTERNS = {
         (r'backup\.zip', 'ZIP Backup'),
         (r'database\.sql', 'Database SQL'),
         (r'db\.sql', 'Database SQL'),
-        (r'config\.bak', 'Config Backup'),
-        (r'site\.tar\.gz', 'Site Backup'),
     ],
     'source-control': [
         (r'\.git/config', 'Git Config'),
         (r'git\s+clone\s+https://[A-Za-z0-9]+:[A-Za-z0-9]+@', 'Git Credentials'),
-        (r'\.gitignore', '.gitignore'),
     ],
     'miscellaneous': [
         (r'ftplib\.FTP\s*\(', 'FTP - unencrypted'),
@@ -319,7 +250,6 @@ VULN_PATTERNS = {
         (r'xml\.etree\.ElementTree\.parse', 'XXE - ElementTree'),
         (r'XMLReader\s*\(\s*[\'"]http://', 'XXE - XMLReader'),
         (r'DOMDocument\s*\(\s*[\'"]http://', 'XXE - DOMDocument'),
-        (r'SimpleXMLElement\s*\(\s*[\'"]http://', 'XXE - SimpleXMLElement'),
     ],
     'ssrf': [
         (r'requests\.get\s*\(\s*[\'"]https?://.*\+\s*', 'SSRF - requests.get'),
@@ -350,29 +280,19 @@ def verify_endpoint(url: str, timeout: int = 5) -> bool:
     """
     Verify if an endpoint actually exists by making a HEAD request.
     Returns True only if status code is 200 OK.
-    This eliminates false positives from framework code.
     """
     try:
-        # Use HEAD request to avoid downloading content
         response = requests.head(url, timeout=timeout, allow_redirects=True)
-        # Only 200 OK means it exists
         if response.status_code == 200:
             return True
         elif response.status_code in [301, 302, 307, 308]:
-            # Follow redirect and check final status
             try:
                 final_response = requests.get(url, timeout=timeout, allow_redirects=True)
                 return final_response.status_code == 200
             except:
                 return False
         return False
-    except requests.exceptions.ConnectionError:
-        return False
-    except requests.exceptions.Timeout:
-        return False
-    except requests.exceptions.InvalidURL:
-        return False
-    except Exception:
+    except:
         return False
 
 
@@ -381,22 +301,17 @@ def _should_skip_file(file_path: str) -> bool:
     file_path_lower = file_path.lower()
     file_name = os.path.basename(file_path_lower)
     
-    # Skip inline scripts
     if re.match(r'^inline_js_\d+\.js$', file_name):
         return True
-    
-    # Skip hashed filenames
     if re.match(r'^[a-z0-9_-]{8,}\.js$', file_name, re.IGNORECASE):
         return True
     if re.match(r'^[a-z0-9_-]{8,}-[a-z0-9_-]*\.js$', file_name, re.IGNORECASE):
         return True
     
-    # Skip directories
     for skip_dir in SKIP_DIRS:
         if f'/{skip_dir}/' in file_path_lower or f'\\{skip_dir}\\' in file_path_lower:
             return True
     
-    # Skip library files
     for pattern in SKIP_FILE_PATTERNS:
         if re.search(pattern, file_path_lower, re.IGNORECASE):
             return True
@@ -407,10 +322,8 @@ def _should_skip_file(file_path: str) -> bool:
 def _should_skip_line(line: str) -> bool:
     """Check if line should be skipped"""
     line_stripped = line.strip()
-    
     if not line_stripped:
         return True
-    
     if line_stripped.startswith('//') or line_stripped.startswith('/*'):
         return True
     
@@ -437,23 +350,18 @@ def _process_single_file(args):
         if not content.strip():
             return local_findings
 
-        # Skip framework files entirely
         if _should_skip_file(file_path):
             return local_findings
 
         for line_idx, raw_line in enumerate(lines, 1):
             line = raw_line.strip()
-
             if _should_skip_line(line):
                 continue
 
-            # Check vulnerability patterns
             vuln_category = rule.category.lower() if hasattr(rule, 'category') else 'unknown'
-            
-            # Get patterns for this category
             category_patterns = VULN_PATTERNS.get(vuln_category, {})
+            
             if not category_patterns:
-                # If no specific patterns, check the rule's vuln_patterns
                 for pattern in rule.vuln_patterns:
                     if pattern.search(line):
                         local_findings.append({
@@ -473,15 +381,12 @@ def _process_single_file(args):
                         break
                 continue
 
-            # Check specific vulnerability patterns
             for pattern, description in category_patterns:
                 if re.search(pattern, line, re.IGNORECASE):
-                    # Get context
                     start_win = max(0, line_idx - 3)
                     end_win = min(len(lines), line_idx + 3)
                     context = lines[start_win:end_win]
                     
-                    # Check for sanitization
                     is_sanitized = False
                     sanitize_patterns = [
                         r'sanitize', r'escape', r'encode', r'DOMPurify',
@@ -525,7 +430,6 @@ class SurfaceScanner:
         self.findings = []
         self.skipped_count = 0
         self.scanned_count = 0
-        # mode is not needed here - it's handled in main.py
 
         self.supported_exts = {
             '.js', '.jsx', '.ts', '.tsx', '.html', '.htm',
@@ -551,13 +455,11 @@ class SurfaceScanner:
 
             for file in files:
                 file_path = os.path.join(root, file)
-
                 if not self._should_scan_file(file_path):
                     self.skipped_count += 1
                     continue
 
                 self.scanned_count += 1
-
                 for rule in self.rules:
                     if self._rule_matches_file(rule, file_path):
                         tasks.append((file_path, rule, self.target_dir))
@@ -579,31 +481,24 @@ class SurfaceScanner:
         return self.findings
 
     def _should_scan_file(self, file_path: str) -> bool:
-        """Check if file should be scanned"""
         if _should_skip_file(file_path):
             return False
-        
         ext = os.path.splitext(file_path)[1].lower()
         if ext not in self.supported_exts:
             return False
-        
         try:
             if os.path.getsize(file_path) > 10 * 1024 * 1024:
                 return False
         except:
             return False
-        
         return True
 
     def _rule_matches_file(self, rule, file_path: str) -> bool:
-        """Check if rule applies to file"""
         ext = os.path.splitext(file_path)[1].lower()
         return any(file_path.endswith(fe) or ext == fe for fe in rule.file_exts)
 
     def export_findings(self, output_dir: str = "output") -> bool:
-        """Export findings to JSON and SQLite"""
         import sqlite3
-        
         os.makedirs(output_dir, exist_ok=True)
         
         json_path = os.path.join(output_dir, "findings.json")
@@ -619,9 +514,7 @@ class SurfaceScanner:
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            
             cursor.execute("DROP TABLE IF EXISTS security_findings")
-            
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS security_findings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -640,7 +533,6 @@ class SurfaceScanner:
                     risk_score INTEGER
                 )
             """)
-            
             for f in self.findings:
                 cursor.execute("""
                     INSERT INTO security_findings (
@@ -664,19 +556,16 @@ class SurfaceScanner:
                     f.get("timestamp"),
                     f.get("risk_score", 0),
                 ))
-            
             conn.commit()
             conn.close()
             print(f"[+] Exported findings to {db_path}")
             return True
-            
         except Exception as e:
             print(f"[!] Error exporting to SQLite: {e}")
             return False
 
 
 def export_results(results, output_dir):
-    """Legacy function for compatibility"""
     scanner = SurfaceScanner(".")
     scanner.findings = results
     return scanner.export_findings(output_dir)

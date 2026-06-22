@@ -30,12 +30,9 @@ venv/
 env/
 .env/
 
-# Output
-output/
-findings.json
-findings.db
-findings.csv
-report.html
+# Output (keep output directory but ignore files inside)
+output/*
+!output/.gitkeep
 
 # IDE
 .vscode/
@@ -49,19 +46,28 @@ report.html
 *.log
 logs/
 
-# Test files
-test_*.js
+# Debug/Test files
+check.py
+debug_scan.py
+filter.py
+fix_init.py
 test_*.py
 debug_*.py
+
+# Database files (ignore root DB files, keep output/ ones)
+findings.db
+findings.json
+*.db
+*.sqlite
+*.sqlite3
 
 # Temp files
 temp/
 tmp/
 *.tmp
-# Debug files
-check.py
-debug_scan.py
-filter.py
-findings.db
-findings.json
-fix_init.py
+*.bak
+*.old
+
+# OS files
+Thumbs.db
+Desktop.ini

@@ -4,7 +4,6 @@ Risk Engine - Risk calculation and classification
 
 from typing import Tuple, Optional
 
-# Category to severity mapping
 CATEGORY_SEVERITY = {
     "APPLICATION": ("HIGH", 85),
     "NETWORK": ("HIGH", 80),
@@ -22,25 +21,14 @@ CATEGORY_SEVERITY = {
     "DEPENDENCIES": ("MEDIUM", 70),
 }
 
-# Default severity if not found
 DEFAULT_SEVERITY = ("MEDIUM", 70)
 
 
 def get_risk(category: str) -> Tuple[str, int]:
-    """
-    Get risk information for a category
-    
-    Args:
-        category: The category name
-        
-    Returns:
-        Tuple of (severity, confidence)
-    """
-    # Look for exact match
+    """Get risk information for a category"""
     if category in CATEGORY_SEVERITY:
         return CATEGORY_SEVERITY[category]
     
-    # Look for partial match
     category_lower = category.lower()
     for key, value in CATEGORY_SEVERITY.items():
         if key.lower() in category_lower or category_lower in key.lower():
@@ -58,10 +46,8 @@ def calculate_risk_score(severity: str, confidence: int) -> int:
         "LOW": 3,
         "INFO": 1
     }
-    
     severity_score = severity_map.get(severity.upper(), 5)
     confidence_factor = confidence / 100.0
-    
     return int(severity_score * confidence_factor)
 
 
@@ -69,11 +55,9 @@ def classify_finding(finding: dict) -> dict:
     """Classify a finding with risk information"""
     category = finding.get("category", "UNKNOWN")
     severity, confidence = get_risk(category)
-    
     finding["severity"] = severity
     finding["confidence"] = confidence
     finding["risk_score"] = calculate_risk_score(severity, confidence)
-    
     return finding
 
 
@@ -93,7 +77,6 @@ def filter_by_severity(findings: list, min_severity: str = "MEDIUM") -> list:
     """Filter findings by minimum severity"""
     severity_order = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
     min_index = severity_order.index(min_severity.upper())
-    
     return [
         f for f in findings
         if severity_order.index(f.get("severity", "MEDIUM").upper()) >= min_index

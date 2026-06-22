@@ -16,13 +16,9 @@ console = Console()
 
 def sanitize_filename(filename: str) -> str:
     """Sanitize filename to remove invalid characters"""
-    # Remove query parameters
     filename = filename.split('?')[0]
-    # Remove invalid characters for Windows/Linux
     filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-    # Remove excessive underscores
     filename = re.sub(r'_+', '_', filename)
-    # Ensure it ends with .js
     if not filename.endswith('.js'):
         filename += '.js'
     return filename
@@ -39,7 +35,7 @@ class WebCrawler:
         self.html_pages: List[str] = []
         self.endpoints: Set[str] = set()
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         self.session = requests.Session()
         self.session.headers.update(self.headers)
@@ -56,7 +52,6 @@ class WebCrawler:
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Find all links
             for link in soup.find_all('a', href=True):
                 href = link['href']
                 full_url = urljoin(self.target_url, href)
@@ -64,7 +59,6 @@ class WebCrawler:
                     self.discovered_urls.add(full_url)
                     self._extract_endpoints(full_url)
             
-            # Find script tags
             for script in soup.find_all('script', src=True):
                 src = script['src']
                 if src.startswith('//'):
@@ -78,18 +72,15 @@ class WebCrawler:
                 if clean_url.endswith('.js') and clean_url not in self.js_files:
                     self.js_files.append(clean_url)
             
-            # Find inline scripts
             for script in soup.find_all('script', src=False):
                 if script.string:
                     self._extract_endpoints_from_js(script.string)
             
-            # Find endpoints in HTML attributes
             for tag in soup.find_all(attrs={"data-url": True}):
                 endpoint = tag.get('data-url')
                 if endpoint:
                     self.endpoints.add(endpoint)
             
-            # Find endpoints in forms
             for form in soup.find_all('form'):
                 action = form.get('action')
                 if action:
@@ -164,23 +155,19 @@ class WebCrawler:
         
         for i, js_url in enumerate(self.js_files):
             try:
-                # Sanitize filename
                 filename = os.path.basename(js_url)
                 sanitized = sanitize_filename(filename)
                 filepath = os.path.join(output_dir, sanitized)
                 
-                # Skip if file already exists
                 if os.path.exists(filepath):
                     downloaded.append(filepath)
                     continue
                 
-                # Handle relative URLs
                 if js_url.startswith('//'):
                     js_url = 'https:' + js_url
                 elif js_url.startswith('/'):
                     js_url = urljoin(self.target_url, js_url)
                 
-                # Download content
                 response = self.session.get(js_url, timeout=10)
                 if response.status_code == 200:
                     with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
@@ -190,7 +177,7 @@ class WebCrawler:
                     failed += 1
             except Exception as e:
                 failed += 1
-                if failed <= 10:  # Only show first 10 errors
+                if failed <= 10:
                     console.print(f"[dim]Error downloading {js_url}: {e}[/dim]")
         
         if failed > 10:

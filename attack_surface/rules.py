@@ -5,14 +5,12 @@ Rules Module - Defines all scanning rules
 import re
 from typing import List, Dict, Optional
 
-# Import from surface directories (ACTIVE RULES)
-# IMPORTANT: Using your actual folder and file names
 from attack_surface.iam_surface.iam import IAM_RULES
 from attack_surface.input_surface.input import INPUT_RULES
 from attack_surface.api_surface.api import API_RULES
 from attack_surface.file_surface.file import FILE_RULES
 from attack_surface.frontend_surface.frontend import FRONTEND_RULES
-from attack_surface.secret_surface.secret import SECRETS_RULES  # ← YOUR path
+from attack_surface.secret_surface.secret import SECRETS_RULES
 from attack_surface.infrastructure_surface.infrastructure import INFRASTRUCTURE_RULES
 from attack_surface.communication_surface.communications import COMMUNICATIONS_RULES
 
@@ -44,7 +42,6 @@ class Rule:
         self.cwe = cwe
         self.rule_id = rule_id
 
-        # Compile patterns
         self.vuln_patterns = []
         self.sanitizer_patterns = []
 
@@ -83,7 +80,6 @@ def _build_rules(raw_rules: List[dict], category_name: str) -> List[Rule]:
     return built
 
 
-# Combined rules from all surface directories
 ALL_RULES = (
     _build_rules(IAM_RULES, "IAM") +
     _build_rules(INPUT_RULES, "INPUT") +
@@ -95,10 +91,8 @@ ALL_RULES = (
     _build_rules(COMMUNICATIONS_RULES, "COMMUNICATIONS")
 )
 
-# Keep RULES for backward compatibility
 RULES = ALL_RULES
 
-# Category to rules mapping
 RULES_BY_CATEGORY = {}
 for rule in ALL_RULES:
     if rule.category not in RULES_BY_CATEGORY:
@@ -107,20 +101,16 @@ for rule in ALL_RULES:
 
 
 def get_rules_by_category(category: str) -> List[Rule]:
-    """Get rules by category"""
     return RULES_BY_CATEGORY.get(category, [])
 
 
 def get_rules_by_severity(severity: str) -> List[Rule]:
-    """Get rules by severity"""
     return [r for r in ALL_RULES if r.severity.upper() == severity.upper()]
 
 
 def get_rule_count() -> int:
-    """Get total number of rules"""
     return len(ALL_RULES)
 
 
 def get_rule_categories() -> List[str]:
-    """Get all unique categories"""
     return list(RULES_BY_CATEGORY.keys())
