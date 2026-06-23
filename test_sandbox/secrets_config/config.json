@@ -1,4 +1,36 @@
 {
-  "api_key" : "xoxb-dummy-token-unsecure",
-  "secret_key" : "<insert-here>"
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "rootpassword123"
+  },
+  "api": {
+    "key": "sk-1234567890abcdefghijklmnopqrstuvwxyz",
+    "secret": "supersecretkey12345"
+  },
+  "jwt": {
+    "secret": "jwtsecretkey12345",
+    "algorithm": "HS256"
+  },
+  "aws": {
+    "access_key": "AKIAIOSFODNN7EXAMPLE",
+    "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  },
+  "mongodb": {
+    "uri": "mongodb://admin:password123@localhost:27017/mydb"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "redispassword123"
+  },
+  "email": {
+    "smtp": {
+      "host": "smtp.example.com",
+      "port": 587,
+      "username": "admin@example.com",
+      "password": "emailpassword123"
+    }
+  }
 }

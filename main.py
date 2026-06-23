@@ -6,8 +6,8 @@ The Deadliest Security Scanner - Zero False Positives
 
 import sys
 import os
-import tempfile
 import re
+import tempfile
 import requests
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -29,33 +29,11 @@ console = Console()
 # ============================================================================
 
 BUILD_ARTIFACT_PATTERNS = [
-    r'/_next/',
-    r'/static/',
-    r'/chunks/',
-    r'/images/',
-    r'/fonts/',
-    r'/icons/',
-    r'/favicon\.',
-    r'/manifest\.',
-    r'\.woff2?$',
-    r'\.ttf$',
-    r'\.eot$',
-    r'\.svg$',
-    r'\.png$',
-    r'\.jpg$',
-    r'\.jpeg$',
-    r'\.gif$',
-    r'\.ico$',
-    r'\.webp$',
-    r'\.css$',
-    r'\.map$',
-    r'__next',
-    r'webpack',
-    r'chunk-',
-    r'framework-',
-    r'polyfills',
-    r'runtime',
-    r'vendor',
+    r'/_next/', r'/static/', r'/chunks/', r'/images/', r'/fonts/',
+    r'/icons/', r'/favicon\.', r'/manifest\.', r'\.woff2?$', r'\.ttf$',
+    r'\.eot$', r'\.svg$', r'\.png$', r'\.jpg$', r'\.jpeg$', r'\.gif$',
+    r'\.ico$', r'\.webp$', r'\.css$', r'\.map$', r'__next', r'webpack',
+    r'chunk-', r'framework-', r'polyfills', r'runtime', r'vendor',
 ]
 
 # ============================================================================
@@ -247,6 +225,21 @@ def is_build_artifact(endpoint: str) -> bool:
     return False
 
 
+def is_web_url(url: str) -> bool:
+    return url.startswith("http://") or url.startswith("https://")
+
+
+def is_local_path(path: str) -> bool:
+    """Check if the target is a local file path"""
+    if os.path.exists(path):
+        return True
+    if '/' in path or '\\' in path or path == '.' or path == '..':
+        return True
+    if os.path.exists(os.path.join(os.getcwd(), path)):
+        return True
+    return False
+
+
 def display_menu():
     console.print("\n")
     console.print(Panel(
@@ -263,21 +256,119 @@ def display_menu():
     return Prompt.ask("Select scan mode", choices=["1","2","3","4","5","6","7"], default="7")
 
 
-def is_web_url(url: str) -> bool:
-    return url.startswith("http://") or url.startswith("https://")
+def _detect_category(line: str, file_path: str) -> str:
+    """Detect the category of a finding based on content"""
+    line_lower = line.lower()
+    file_lower = file_path.lower()
+    
+    if 'password' in line_lower or 'secret' in line_lower or 'api_key' in line_lower or 'token' in line_lower:
+        return 'secrets'
+    if 'eval' in line_lower or 'exec' in line_lower or 'system' in line_lower:
+        return 'code_execution'
+    if 'innerhtml' in line_lower or 'document.write' in line_lower:
+        return 'xss'
+    if 'select' in line_lower and 'from' in line_lower:
+        return 'sql_injection'
+    if 'upload' in file_lower:
+        return 'file_upload'
+    if 'session' in file_lower or 'cookie' in line_lower:
+        return 'session_management'
+    if 'authentication' in file_lower or 'login' in file_lower:
+        return 'authentication'
+    if 'database' in file_lower or 'db_' in file_lower:
+        return 'database'
+    return 'unknown'
+
+
+def scan_local_path(path: str, mode: str, patterns: List[str]) -> List[Dict]:
+    """Scan a local directory for vulnerabilities"""
+    console.print(Panel(f"[cyan]Local Target[/cyan] {path}"))
+    
+    if not os.path.exists(path):
+        console.print(f"[red]Path does not exist: {path}[/red]")
+        return []
+    
+    all_findings = []
+    scanned_files = 0
+    
+    console.print(f"[cyan]Scanning local directory: {path}[/cyan]")
+    
+    # Walk through all files
+    for root, dirs, files in os.walk(path):
+        # Skip certain directories
+        dirs[:] = [d for d in dirs if d not in ['__pycache__', '.git', 'venv', 'node_modules']]
+        
+        for file in files:
+            file_path = os.path.join(root, file)
+            
+            # Skip certain file types
+            if any(file_path.endswith(ext) for ext in ['.pyc', '.pyo', '.so', '.dll', '.exe']):
+                continue
+            
+            # Only scan relevant file types
+            ext = os.path.splitext(file)[1].lower()
+            if ext not in ['.py', '.js', '.html', '.htm', '.json', '.txt', '.env', '.conf', '.cfg', '.yml', '.yaml']:
+                continue
+            
+            scanned_files += 1
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    lines = content.split('\n')
+                    
+                for line_idx, line in enumerate(lines, 1):
+                    line = line.strip()
+                    if not line or len(line) < 5:
+                        continue
+                    
+                    for pattern in patterns:
+                        try:
+                            if re.search(pattern, line, re.IGNORECASE):
+                                category = _detect_category(line, file_path)
+                                all_findings.append({
+                                    "finding_id": f"LOCAL-{len(all_findings)}",
+                                    "cwe": "N/A",
+                                    "category": category,
+                                    "name": f"Pattern Match in {os.path.basename(file_path)}",
+                                    "file": os.path.relpath(file_path, path),
+                                    "line": line_idx,
+                                    "snippet": line[:200],
+                                    "status": "VULNERABLE",
+                                    "severity": "MEDIUM",
+                                    "confidence": 80,
+                                    "description": f"Found pattern in {os.path.basename(file_path)}",
+                                    "timestamp": datetime.now().isoformat()
+                                })
+                                break
+                        except re.error:
+                            pass
+            except Exception as e:
+                pass
+    
+    console.print(f"[green]Scanned {scanned_files} files[/green]")
+    
+    # Export results
+    if all_findings:
+        console.print(f"[green]Found {len(all_findings)} findings in local files[/green]")
+        export_results(all_findings, "output")
+    else:
+        console.print("[yellow]No findings in local files[/yellow]")
+        export_results([], "output")
+    
+    return all_findings
 
 
 def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
+    """Scan a web application for vulnerabilities"""
     console.print(Panel(f"[magenta]Web Target[/magenta] {url}"))
     
     temp_dir = tempfile.mkdtemp()
     all_findings = []
-    found_items = set()
     verified_endpoints = set()
     
     try:
         console.print("[cyan]Fetching HTML content...[/cyan]")
-        import requests
         html_content = ""
         try:
             response = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
@@ -506,9 +597,29 @@ def main():
     print_startup()
     print_environment()
     
-    target = sys.argv[1] if len(sys.argv) > 1 else Prompt.ask("Target URL (e.g., https://example.com)")
-    if not target.startswith(('http://', 'https://')):
+    # Get target
+    if len(sys.argv) > 1:
+        target = sys.argv[1]
+    else:
+        target = Prompt.ask("Target URL (e.g., https://example.com) or local path (e.g., ./project)")
+    
+    # Determine target type
+    is_web = is_web_url(target)
+    is_local = is_local_path(target)
+    
+    # If it's a local path but doesn't exist, try with ./ prefix
+    if is_local and not is_web and not os.path.exists(target):
+        local_target = os.path.join(os.getcwd(), target)
+        if os.path.exists(local_target):
+            target = local_target
+        else:
+            console.print(f"[red]Path does not exist: {target}[/red]")
+            return
+    
+    # If not web and not local, try adding https://
+    if not is_web and not is_local:
         target = 'https://' + target
+        is_web = True
     
     choice = display_menu()
     mode_info = FEATURES[choice]
@@ -528,7 +639,13 @@ def main():
         console.print(f"[yellow]Rules Loaded:[/yellow] {len(patterns)}")
     
     console.print("-" * 80)
-    results = scan_web_url(target, choice, patterns)
+    
+    # Run scan based on target type
+    if is_web:
+        results = scan_web_url(target, choice, patterns)
+    else:
+        results = scan_local_path(target, choice, patterns)
+    
     render_results(results, mode_info['name'])
 
 

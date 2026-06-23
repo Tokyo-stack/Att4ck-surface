@@ -3,63 +3,130 @@ from datetime import datetime
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from rich.align import Align
 
 console = Console()
 
 
 def print_banner():
-    # Use a simpler ASCII-safe banner to avoid cp1252 encoding issues on Windows
+    """
+    Print the ATT4ck Surface banner with enhanced styling
+    """
+    # Clean ASCII banner - properly formatted
     banner_lines = [
-        "    _  _____ _____   _    ____ _  __   ____  _   _ ____  _____ _    ____ _____",
-        "   / \\|_   _|_   _| / \\  / ___| |/ /  / ___|| | | |  _ \\|  ___/ \\  / ___| ____|",
-        "  / _ \\ | |   | |  / _ \\| |   | ' /   \\___ \\| | | | |_) | |_ / _ \\| |   |  _|",
-        " / ___ \\| |   | | / ___ \\ |___| . \\    ___) | |_| |  _ <|  _/ ___ \\ |___| |___",
-        "/_/   \\_\\_|   |_|/_/   \\_\\____|_|\\_\\  |____/ \\___/|_| \\_\\_|/_/   \\_\\____|_____|",
+        "",
+        "    █████╗ ████████╗████████╗██╗  ██╗ ██████╗██╗  ██╗     ███████╗██╗   ██╗██████╗ ███████╗ █████╗  ██████╗███████╗",
+        "   ██╔══██╗╚══██╔══╝╚══██╔══╝██║  ██║██╔════╝██║ ██╔╝     ██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗██╔════╝██╔════╝",
+        "   ███████║   ██║      ██║   ███████║██║     █████╔╝      ███████╗██║   ██║██████╔╝█████╗  ███████║██║     █████╗  ",
+        "   ██╔══██║   ██║      ██║   ╚════██║██║     ██╔═██╗      ╚════██║██║   ██║██╔══██╗██╔══╝  ██╔══██║██║     ██╔══╝  ",
+        "   ██║  ██║   ██║      ██║        ██║╚██████╗██║  ██╗     ███████║╚██████╔╝██║  ██║██║     ██║  ██║╚██████╗███████╗",
+        "   ╚═╝  ╚═╝   ╚═╝      ╚═╝        ╚═╝ ╚═════╝╚═╝  ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝",
+        "",
     ]
 
-    banner_art = Text()
-    for line in banner_lines:
-        banner_art.append(line + "\n", style="bold red")
-
-    console.print(banner_art)
-
-    info_text = (
-        "[bold white]ATT&CK SURFACE v1.0.0[/bold white]\n"
-        "[white]Attack Surface Mapping & Security Review Framework[/white]\n"
-        "\n"
-        "[bold white]Features:[/bold white]\n"
-        " [cyan]*[/cyan] Endpoint Discovery      [cyan]*[/cyan] Secret Detection      [cyan]*[/cyan] File Upload Analysis\n"
-        " [cyan]*[/cyan] API Enumeration         [cyan]*[/cyan] Security Misconfig    [cyan]*[/cyan] Parameter Mapping\n"
-        " [cyan]*[/cyan] Source Code Review      [cyan]*[/cyan] Risk Classification   [cyan]*[/cyan] Attack Surface Coverage\n"
-        "\n"
-        " [bold white]Developer :[/bold white] Tokyo\n"
-        " [bold white]GitHub    :[/bold white] github.com/Tokyo-stack/Att4ck-surface"
+    # Print banner with gradient effect
+    colors = ['bold red', 'bright_red', 'red', 'bold red', 'bright_red', 'red']
+    
+    for i, line in enumerate(banner_lines):
+        if line.strip():
+            color = colors[i % len(colors)]
+            console.print(Align.center(Text(line, style=color)))
+    
+    # Title Box - Bold and Enhanced
+    title_box = Panel(
+        Text(" ATT4ck Surface v1.0.0 ", style="bold white on red") + 
+        Text("\n") +
+        Text(" Attack Surface Mapping & Security Review Framework ", style="bold white") +
+        Text("\n\n") +
+        Text(" Features:", style="bold cyan") +
+        Text("\n") +
+        Text("  • ", style="bold green") + Text("Endpoint Discovery", style="white") + 
+        Text("      ", style="dim") +
+        Text("• ", style="bold green") + Text("Secret Detection", style="white") + 
+        Text("      ", style="dim") +
+        Text("• ", style="bold green") + Text("File Upload Analysis", style="white") +
+        Text("\n  • ", style="bold green") + Text("API Enumeration", style="white") + 
+        Text("         ", style="dim") +
+        Text("• ", style="bold green") + Text("Security Misconfig", style="white") + 
+        Text("    ", style="dim") +
+        Text("• ", style="bold green") + Text("Parameter Mapping", style="white") +
+        Text("\n  • ", style="bold green") + Text("Source Code Review", style="white") + 
+        Text("      ", style="dim") +
+        Text("• ", style="bold green") + Text("Risk Classification", style="white") + 
+        Text("   ", style="dim") +
+        Text("• ", style="bold green") + Text("Attack Surface Coverage", style="white") +
+        Text("\n\n") +
+        Text(" Developer : ", style="bold yellow") + Text("Tokyo", style="bright_white") +
+        Text("\n") +
+        Text(" GitHub    : ", style="bold yellow") + Text("github.com/Tokyo-stack/Att4ck-surface", style="bright_white"),
+        border_style="bright_red",
+        width=80,
+        title="🔥 ATT4CK SURFACE 🔥",
+        title_align="center",
+        padding=(1, 2)
     )
-
-    console.print(Panel(info_text, border_style="white"))
+    
+    console.print(Align.center(title_box))
     console.print()
 
 
 def print_startup():
-    console.print("[blue][INFO][/blue] Initializing modules...")
-    console.print("[blue][INFO][/blue] Loading attack surface inventory...")
-    console.print("[blue][INFO][/blue] Loading detection engine...")
-    console.print("[blue][INFO][/blue] Loading security rulesets...")
-    console.print("[blue][INFO][/blue] Initializing reporting engine...")
-    console.print("[green][SUCCESS][/green] ATT&CK Surface initialized.\n")
+    """Print startup messages with enhanced styling"""
+    console.print()
+    
+    # Create a status panel
+    status_lines = [
+        Text("🔧 Initializing modules...", style="bold cyan"),
+        Text("📦 Loading attack surface inventory...", style="bold cyan"),
+        Text("⚡ Loading detection engine...", style="bold cyan"),
+        Text("🛡️  Loading security rulesets...", style="bold cyan"),
+        Text("📊 Initializing reporting engine...", style="bold cyan"),
+        Text("✅ ATT&CK Surface initialized.", style="bold green"),
+    ]
+    
+    for line in status_lines:
+        console.print(f"  {line}")
+    
+    console.print()
 
 
 def print_environment():
-    console.print(f"[cyan]{'-' * 90}[/cyan]")
-    console.print(f"[white]Framework :[/white] ATT&CK Surface")
-    console.print(f"[white]Version   :[/white] 1.0.0")
-    console.print(f"[white]Python    :[/white] {platform.python_version()}")
-    console.print(f"[white]Platform  :[/white] {platform.system()} {platform.release()}")
-    console.print(f"[white]Timestamp :[/white] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    console.print(f"[cyan]{'-' * 90}[/cyan]\n")
+    """Print environment information with enhanced styling"""
+    console.print()
+    
+    # Create a styled environment box
+    env_lines = [
+        ("Framework", "ATT&CK Surface v1.0.0", "bold cyan"),
+        ("Version", "1.0.0", "bold white"),
+        ("Python", platform.python_version(), "bold yellow"),
+        ("Platform", f"{platform.system()} {platform.release()}", "bold green"),
+        ("Timestamp", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "bold blue"),
+    ]
+    
+    # Print separator
+    console.print(Text("═" * 90, style="bright_black"))
+    
+    # Print each line with proper alignment
+    for label, value, style in env_lines:
+        console.print(
+            Text(f"{label:>12} ", style="bold white") + 
+            Text(":", style="bright_black") + 
+            Text(f" {value}", style=style)
+        )
+    
+    console.print(Text("═" * 90, style="bright_black"))
+    console.print()
+
+
+def print_footer():
+    """Print a footer for the scanner"""
+    console.print()
+    console.print(Align.center(Text("⚡ Made with ❤️ by Tokyo ⚡", style="bold red")))
+    console.print(Align.center(Text("Stay Secure, Stay Vigilant!", style="bold white")))
 
 
 if __name__ == "__main__":
     print_banner()
     print_startup()
     print_environment()
+    print_footer()

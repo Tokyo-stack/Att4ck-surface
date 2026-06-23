@@ -71,3 +71,27 @@ tmp/
 # OS files
 Thumbs.db
 Desktop.ini
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+
+# Output
+output/
+findings.json
+findings.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Test files
+check.py
+debug_scan.py
