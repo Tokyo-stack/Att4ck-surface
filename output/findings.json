@@ -6,29 +6,15 @@
     "name": "Verified Discovered Endpoint",
     "file": "https://vulnerable-site-liart.vercel.app/",
     "line": 0,
-    "snippet": "//admin",
+    "snippet": "/profile/1",
     "status": "VULNERABLE",
     "severity": "MEDIUM",
     "confidence": 95,
-    "description": "Verified: //admin (200 OK)",
-    "timestamp": "2026-06-24T17:34:53.105895"
+    "description": "Verified: /profile/1 (200 OK)",
+    "timestamp": "2026-06-24T17:46:21.589958"
   },
   {
     "finding_id": "EP-1",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "//",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: // (200 OK)",
-    "timestamp": "2026-06-24T17:34:54.249552"
-  },
-  {
-    "finding_id": "EP-2",
     "cwe": "N/A",
     "category": "endpoint",
     "name": "Verified Discovered Endpoint",
@@ -39,150 +25,10 @@
     "severity": "MEDIUM",
     "confidence": 95,
     "description": "Verified: //profile/1 (200 OK)",
-    "timestamp": "2026-06-24T17:34:54.914368"
+    "timestamp": "2026-06-24T17:46:22.064999"
   },
   {
-    "finding_id": "EP-3",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "//login",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: //login (200 OK)",
-    "timestamp": "2026-06-24T17:34:55.336273"
-  },
-  {
-    "finding_id": "EP-4",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "/upload",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: /upload (200 OK)",
-    "timestamp": "2026-06-24T17:34:55.632661"
-  },
-  {
-    "finding_id": "EP-5",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "//search",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: //search (200 OK)",
-    "timestamp": "2026-06-24T17:34:56.060951"
-  },
-  {
-    "finding_id": "EP-6",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "/search",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: /search (200 OK)",
-    "timestamp": "2026-06-24T17:34:56.369158"
-  },
-  {
-    "finding_id": "EP-7",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "/download",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: /download (200 OK)",
-    "timestamp": "2026-06-24T17:34:56.675419"
-  },
-  {
-    "finding_id": "EP-8",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "//api/users",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: //api/users (200 OK)",
-    "timestamp": "2026-06-24T17:34:57.938955"
-  },
-  {
-    "finding_id": "EP-9",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "/api/users",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: /api/users (200 OK)",
-    "timestamp": "2026-06-24T17:34:58.503409"
-  },
-  {
-    "finding_id": "EP-10",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "/admin",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: /admin (200 OK)",
-    "timestamp": "2026-06-24T17:34:58.805401"
-  },
-  {
-    "finding_id": "EP-11",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "//upload",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: //upload (200 OK)",
-    "timestamp": "2026-06-24T17:34:59.231562"
-  },
-  {
-    "finding_id": "EP-12",
-    "cwe": "N/A",
-    "category": "endpoint",
-    "name": "Verified Discovered Endpoint",
-    "file": "https://vulnerable-site-liart.vercel.app/",
-    "line": 0,
-    "snippet": "/profile/1",
-    "status": "VULNERABLE",
-    "severity": "MEDIUM",
-    "confidence": 95,
-    "description": "Verified: /profile/1 (200 OK)",
-    "timestamp": "2026-06-24T17:34:59.589205"
-  },
-  {
-    "finding_id": "EP-13",
+    "finding_id": "EP-2",
     "cwe": "N/A",
     "category": "endpoint",
     "name": "Verified Discovered Endpoint",
@@ -193,24 +39,52 @@
     "severity": "MEDIUM",
     "confidence": 95,
     "description": "Verified: //download (200 OK)",
-    "timestamp": "2026-06-24T17:35:00.031173"
+    "timestamp": "2026-06-24T17:46:22.513793"
   },
   {
-    "finding_id": "EP-14",
+    "finding_id": "EP-3",
     "cwe": "N/A",
     "category": "endpoint",
     "name": "Verified Discovered Endpoint",
     "file": "https://vulnerable-site-liart.vercel.app/",
     "line": 0,
-    "snippet": "//profile",
+    "snippet": "//upload",
     "status": "VULNERABLE",
     "severity": "MEDIUM",
     "confidence": 95,
-    "description": "Verified: //profile (200 OK)",
-    "timestamp": "2026-06-24T17:35:00.477219"
+    "description": "Verified: //upload (200 OK)",
+    "timestamp": "2026-06-24T17:46:23.002233"
   },
   {
-    "finding_id": "EP-15",
+    "finding_id": "EP-4",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "/download",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: /download (200 OK)",
+    "timestamp": "2026-06-24T17:46:23.348832"
+  },
+  {
+    "finding_id": "EP-5",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "/upload",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: /upload (200 OK)",
+    "timestamp": "2026-06-24T17:46:23.706054"
+  },
+  {
+    "finding_id": "EP-6",
     "cwe": "N/A",
     "category": "endpoint",
     "name": "Verified Discovered Endpoint",
@@ -221,7 +95,133 @@
     "severity": "MEDIUM",
     "confidence": 95,
     "description": "Verified: /login (200 OK)",
-    "timestamp": "2026-06-24T17:35:01.111342"
+    "timestamp": "2026-06-24T17:46:24.067414"
+  },
+  {
+    "finding_id": "EP-7",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "//admin",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: //admin (200 OK)",
+    "timestamp": "2026-06-24T17:46:24.556111"
+  },
+  {
+    "finding_id": "EP-8",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "/api/users",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: /api/users (200 OK)",
+    "timestamp": "2026-06-24T17:46:25.118998"
+  },
+  {
+    "finding_id": "EP-9",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "//api/users",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: //api/users (200 OK)",
+    "timestamp": "2026-06-24T17:46:25.758506"
+  },
+  {
+    "finding_id": "EP-10",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "//",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: // (200 OK)",
+    "timestamp": "2026-06-24T17:46:26.179190"
+  },
+  {
+    "finding_id": "EP-11",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "//profile",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: //profile (200 OK)",
+    "timestamp": "2026-06-24T17:46:26.637035"
+  },
+  {
+    "finding_id": "EP-12",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "/admin",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: /admin (200 OK)",
+    "timestamp": "2026-06-24T17:46:26.970843"
+  },
+  {
+    "finding_id": "EP-13",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "//search",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: //search (200 OK)",
+    "timestamp": "2026-06-24T17:46:27.383549"
+  },
+  {
+    "finding_id": "EP-14",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "/search",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: /search (200 OK)",
+    "timestamp": "2026-06-24T17:46:27.753611"
+  },
+  {
+    "finding_id": "EP-15",
+    "cwe": "N/A",
+    "category": "endpoint",
+    "name": "Verified Discovered Endpoint",
+    "file": "https://vulnerable-site-liart.vercel.app/",
+    "line": 0,
+    "snippet": "//login",
+    "status": "VULNERABLE",
+    "severity": "MEDIUM",
+    "confidence": 95,
+    "description": "Verified: //login (200 OK)",
+    "timestamp": "2026-06-24T17:46:28.646769"
   },
   {
     "finding_id": "HARD-000",
@@ -236,7 +236,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/",
     "cwe": "CWE-798",
     "remediation": "Move secrets to environment variables",
-    "timestamp": "2026-06-24T17:35:02.022973",
+    "timestamp": "2026-06-24T17:46:29.351424",
     "owasp": "A07:2021 - Identification and Authentication Failures"
   },
   {
@@ -252,7 +252,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/users",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:03.857441",
+    "timestamp": "2026-06-24T17:46:30.910929",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -268,7 +268,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/graphql",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:04.904818",
+    "timestamp": "2026-06-24T17:46:32.138527",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -284,7 +284,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/graphql",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:05.306325",
+    "timestamp": "2026-06-24T17:46:32.444032",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -300,7 +300,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/graphql",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:05.700995",
+    "timestamp": "2026-06-24T17:46:32.817299",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -316,7 +316,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/graphql",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.024317",
+    "timestamp": "2026-06-24T17:46:33.121770",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -332,7 +332,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/graphql",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.337521",
+    "timestamp": "2026-06-24T17:46:33.419616",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -348,7 +348,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/search",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.454964",
+    "timestamp": "2026-06-24T17:46:33.544833",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -364,7 +364,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/search",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.574024",
+    "timestamp": "2026-06-24T17:46:33.657681",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -380,7 +380,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/search",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.683839",
+    "timestamp": "2026-06-24T17:46:33.756158",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -396,7 +396,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/search",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.798379",
+    "timestamp": "2026-06-24T17:46:33.857135",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -412,7 +412,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/search",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:06.909943",
+    "timestamp": "2026-06-24T17:46:33.981519",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -428,7 +428,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/login",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:07.613798",
+    "timestamp": "2026-06-24T17:46:34.102066",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -444,7 +444,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/login",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:07.737197",
+    "timestamp": "2026-06-24T17:46:34.221397",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -460,7 +460,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/login",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:07.855613",
+    "timestamp": "2026-06-24T17:46:34.387813",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -476,7 +476,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/login",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:07.971741",
+    "timestamp": "2026-06-24T17:46:34.524745",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -492,7 +492,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/login",
     "cwe": "CWE-89",
     "remediation": "Use parameterized queries, prepared statements",
-    "timestamp": "2026-06-24T17:35:08.080711",
+    "timestamp": "2026-06-24T17:46:34.642740",
     "owasp": "A03:2021 - Injection"
   },
   {
@@ -508,7 +508,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/graphql",
     "cwe": "CWE-200",
     "remediation": "Implement proper authorization checks",
-    "timestamp": "2026-06-24T17:35:09.145680",
+    "timestamp": "2026-06-24T17:46:35.596828",
     "owasp": "Unknown"
   },
   {
@@ -524,7 +524,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/users",
     "cwe": "CWE-918",
     "remediation": "Validate and sanitize URLs, use allowlist",
-    "timestamp": "2026-06-24T17:35:13.427309",
+    "timestamp": "2026-06-24T17:46:40.025523",
     "owasp": "A10:2021 - Server-Side Request Forgery"
   },
   {
@@ -540,7 +540,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/users",
     "cwe": "CWE-639",
     "remediation": "Implement proper authorization checks",
-    "timestamp": "2026-06-24T17:35:14.415231",
+    "timestamp": "2026-06-24T17:46:41.064047",
     "owasp": "A01:2021 - Broken Access Control"
   },
   {
@@ -556,7 +556,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/profile",
     "cwe": "CWE-639",
     "remediation": "Implement proper authorization checks",
-    "timestamp": "2026-06-24T17:35:14.531264",
+    "timestamp": "2026-06-24T17:46:41.186651",
     "owasp": "A01:2021 - Broken Access Control"
   },
   {
@@ -572,7 +572,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/api/users",
     "cwe": "CWE-942",
     "remediation": "Restrict CORS to trusted origins",
-    "timestamp": "2026-06-24T17:35:15.325273",
+    "timestamp": "2026-06-24T17:46:41.956706",
     "owasp": "Unknown"
   },
   {
@@ -588,7 +588,7 @@
     "url": "https://vulnerable-site-liart.vercel.app/admin",
     "cwe": "CWE-306",
     "remediation": "Implement authentication and authorization",
-    "timestamp": "2026-06-24T17:35:15.737217",
+    "timestamp": "2026-06-24T17:46:42.420912",
     "owasp": "A01:2021 - Broken Access Control"
   }
 ]

