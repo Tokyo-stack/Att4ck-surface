@@ -11,6 +11,7 @@
 ╚═╝  ╚═╝   ╚═╝      ╚═╝        ╚═╝ ╚═════╝╚═╝  ╚═╝     ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝╚══════╝
 ```
 
+[![CI](https://github.com/Tokyo-stack/Att4ck-surface/actions/workflows/ci.yml/badge.svg)](https://github.com/Tokyo-stack/Att4ck-surface/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Surfaces](https://img.shields.io/badge/attack%20surfaces-40-red)](#3-list-of-attack-surfaces)
@@ -290,6 +291,8 @@ A hardened response simply produces no finding for that control.
 | `--json` / `--html` | Shortcuts for a single format. |
 | `-t, --risk-threshold` | Minimum severity to report (`INFO`…`CRITICAL`). |
 | `--fail-on` | Exit code `2` if a finding at/above this severity exists (CI gate). |
+| `--baseline` | Suppress findings already recorded in a baseline file (report only new ones). |
+| `--update-baseline` | Write current findings to a baseline file and exit `0`. |
 | `-w, --workers` | Worker count (`0` = auto). |
 | `--processes` | Use a process pool instead of threads. |
 | `--hide-mitigated` | Drop findings that appear mitigated. |
@@ -298,6 +301,31 @@ A hardened response simply produces no finding for that control.
 | `--max-file-size` | Skip files larger than N bytes (default 5 MiB). |
 | `-q, --quiet` / `-v, --verbose` / `--debug` | Output verbosity. |
 | `--no-banner` / `--no-export` | Suppress banner / skip writing reports. |
+
+### Managing false positives
+
+Three complementary controls keep noise down so the tool can be used as a CI gate:
+
+- **Inline suppression.** Put `att4ck:ignore` in a comment to silence every rule
+  on that line, or `att4ck:ignore[RULE-ID,RULE-ID]` for specific rules. A
+  standalone comment marker also covers the line directly below it; a trailing
+  marker only affects its own line.
+  ```python
+  token = md5(pw).hexdigest()          # att4ck:ignore[AUTH-001]
+  # att4ck:ignore
+  legacy_call(unsafe_input)            # (covered by the marker above)
+  ```
+- **Baselines.** Record the current findings once, then only fail on new ones:
+  ```bash
+  att4ck scan . --update-baseline .att4ck-baseline.json   # accept current state
+  att4ck scan . --baseline .att4ck-baseline.json --fail-on high   # gate on new issues
+  ```
+  Baseline ids are stable across re-scans as long as the surrounding code does
+  not move.
+- **String/comment awareness.** Rules that detect *code constructs* (insecure
+  deserialization, debug flags, unescaped-template calls) ignore matches that
+  occur inside Python string literals or comments, so quoting a dangerous
+  pattern in source does not raise a finding.
 
 ---
 

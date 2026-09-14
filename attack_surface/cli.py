@@ -114,6 +114,10 @@ def cli(ctx: click.Context) -> None:
 @click.option("--no-hidden", is_flag=True, help="Skip hidden files and directories.")
 @click.option("--fail-on", type=click.Choice(SEVERITY_CHOICES, case_sensitive=False), default=None,
               help="Exit non-zero if a finding at or above this severity is present.")
+@click.option("--baseline", type=click.Path(path_type=Path), default=None,
+              help="Suppress findings already recorded in this baseline file (report only new ones).")
+@click.option("--update-baseline", type=click.Path(path_type=Path), default=None,
+              help="Write current findings to this baseline file and exit 0.")
 @click.option("--no-banner", is_flag=True, help="Do not print the ASCII banner.")
 @click.option("--no-export", is_flag=True, help="Analyse only; do not write report files.")
 @click.option("-q", "--quiet", is_flag=True, help="Only print the summary line.")
@@ -135,6 +139,8 @@ def scan(
     respect_gitignore: bool,
     no_hidden: bool,
     fail_on: str | None,
+    baseline: Path | None,
+    update_baseline: Path | None,
     no_banner: bool,
     no_export: bool,
     quiet: bool,
@@ -175,6 +181,30 @@ def scan(
         )
 
     scanner, result = _run_scan(config, rules, quiet)
+
+    if update_baseline is not None:
+        from attack_surface.baseline import write_baseline
+
+        dest = write_baseline(result.findings, update_baseline, target=str(path))
+        console.print(f"[green]Baseline written:[/green] {dest} ({len(result.findings)} findings recorded)")
+        return
+
+    if baseline is not None:
+        from attack_surface.baseline import apply_baseline, load_baseline
+        from attack_surface.risk_engine import prioritize, summarize
+
+        try:
+            known = load_baseline(baseline)
+        except ValueError as exc:
+            raise click.BadParameter(str(exc), param_hint="--baseline") from exc
+        new_findings, suppressed = apply_baseline(result.findings, known)
+        result.findings = prioritize(new_findings)
+        result.summary = summarize(result.findings, result.surfaces_run, rules, result.stats.files_scanned)
+        if not quiet:
+            console.print(
+                f"[dim]Baseline {baseline}: suppressed {suppressed} known finding(s), "
+                f"{len(result.findings)} new.[/dim]"
+            )
 
     if not quiet:
         _render_summary(result)
@@ -471,11 +501,11 @@ def crawl(url: str, max_pages: int, xss: bool, audit: bool, output_dir: Path) ->
     print_banner()
     console.print(f"[bold]Crawling[/bold] [cyan]{url}[/cyan] (max {max_pages} pages)")
     crawler = WebCrawler(url, max_pages=max_pages)
-    result = crawler.crawl()
+    crawl_result = crawler.crawl()
 
-    pages = result.get("pages", [])
-    endpoints = result.get("endpoints", [])
-    js_files = result.get("js_files", [])
+    pages = crawl_result.get("pages", [])
+    endpoints = crawl_result.get("endpoints", [])
+    js_files = crawl_result.get("js_files", [])
     console.print(
         f"[green]Discovered[/green] {len(pages)} pages, {len(endpoints)} endpoints, {len(js_files)} JS files."
     )
@@ -539,7 +569,7 @@ def crawl(url: str, max_pages: int, xss: bool, audit: bool, output_dir: Path) ->
         surfaces_run = tuple(sorted({f.surface for f in ordered}))
         stats = ScanStats(files_scanned=len(pages), rules_loaded=len({f.rule_id for f in ordered}))
         now = datetime.now(UTC).isoformat(timespec="seconds")
-        result = ScanResult(
+        scan_result = ScanResult(
             target=url,
             started_at=now,
             finished_at=now,
@@ -548,7 +578,7 @@ def crawl(url: str, max_pages: int, xss: bool, audit: bool, output_dir: Path) ->
             surfaces_run=surfaces_run,
             summary=summarize(ordered, surfaces_run, (), len(pages)),
         )
-        written = export_results(result, output_dir, formats=dict.fromkeys(("json", "csv", "sqlite", "html")))
+        written = export_results(scan_result, output_dir, formats=dict.fromkeys(("json", "csv", "sqlite", "html")))
         for fmt, path in written.items():
             console.print(f"  • {fmt.upper():6} {path}")
 

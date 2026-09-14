@@ -510,6 +510,7 @@ RULES: tuple[Rule, ...] = (
         ),
         negatives=(r"static|url_for|csrf|nonce|trans\b|_\(|translate|i18n|gettext|svg|icon|render_field|form\.|widget"),
         sanitizers=(r"\bescape\(", r"markupsafe", r"bleach", r"sanitize", r"DOMPurify", r"htmlspecialchars", r"strip_tags"),
+        code_only=True,
         recommendation="Keep auto-escaping enabled and mark only sanitized fragments as safe.",
         remediation="Remove |safe / mark_safe on user-controlled values; sanitize rich text with bleach or DOMPurify before marking safe.",
     ),

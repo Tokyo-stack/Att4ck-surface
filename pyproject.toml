@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
     "rich>=13.7,<15",
     "click>=8.1,<9",
-    "pathspec>=0.12,<1",
+    "pathspec>=0.12,<2",
 ]
 
 [project.optional-dependencies]

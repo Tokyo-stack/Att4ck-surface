@@ -339,8 +339,8 @@ def python_routes(ctx: FileContext) -> Iterator[RouteInfo]:
                 is_route = True
                 if attr in {"get", "post", "put", "delete", "patch", "options", "head"}:
                     methods.append(attr.upper())
-                if call.args and is_constant_str(call.args[0]):
-                    route_path = call.args[0].value  # type: ignore[union-attr]
+                if call.args and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str):
+                    route_path = call.args[0].value
                 methods_kw = keyword_value(call, "methods")
                 if isinstance(methods_kw, (ast.List, ast.Tuple)):
                     methods.extend(

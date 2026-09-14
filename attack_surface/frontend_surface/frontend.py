@@ -110,8 +110,9 @@ def _dom_write(rule: Rule, ctx: FileContext, match: re.Match[str], line_no: int)
     if re.search(r"^\s*(?:''|\"\"|``|null|undefined|0|false|\[\]|{})\s*$", payload):
         return None
     statement = ctx.statement(line_no, 4)
-    if _DOM_SANITIZER.search(statement):
-        return make_hit(ctx, line_no, column=match.start() + 1, mitigated_by=_DOM_SANITIZER.search(statement).group(0),
+    statement_sanitizer = _DOM_SANITIZER.search(statement)
+    if statement_sanitizer:
+        return make_hit(ctx, line_no, column=match.start() + 1, mitigated_by=statement_sanitizer.group(0),
                         skip_sanitizer_check=True, confidence=35)
     window = lookbehind(ctx, line_no, 10) + "\n" + statement + "\n" + lookahead(ctx, line_no, 2)
     sanitizer = _DOM_SANITIZER.search(window)

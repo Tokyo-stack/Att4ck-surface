@@ -1257,6 +1257,7 @@ RULES: tuple[Rule, ...] = (
         keywords=("pickle", "marshal", "shelve", "dill", "jsonpickle", "yaml.load", "yaml.unsafe_load", "unserialize", "marshal.load", "yaml.load", "psych", "objectinputstream", "readobject", "xmldecoder", "xstream", "deserialize", "binaryformatter", "losformatter", "netdatacontract", "soapformatter", "typenamehandling", "node-serialize", "v8.deserialize", "gob.newdecoder", "msgpack", "typeresolver"),
         patterns=(_DESER,),
         checker=_deserialize,
+        code_only=True,
         recommendation="Use JSON/Protobuf/MessagePack (raw) schemas for queue payloads; if native serialisation is unavoidable, sign payloads (HMAC) and restrict allowed classes.",
         remediation="body = json.loads(message.body); CELERY: accept_content = ['json'], task_serializer = 'json'.",
     ),

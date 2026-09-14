@@ -1,7 +1,7 @@
 # ATT4ck Surface - core runtime dependencies (minimal, pinned to compatible ranges)
 rich>=13.7,<15
 click>=8.1,<9
-pathspec>=0.12,<1
+pathspec>=0.12,<2
 
 # Optional: live-target crawling / XSS probing (the `crawl` command)
 #   pip install "att4ck-surface[live]"

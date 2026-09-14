@@ -465,6 +465,7 @@ RULES: tuple[Rule, ...] = (
         ),
         negatives=(r"os\.environ|getenv|process\.env|env\(|ENV\[|\$\{|\{\{|#\s*noqa|DEBUG\s*=\s*False|config\.get|settings\.|logging\.|logger|level|log_level|LOG_LEVEL|loglevel|\bif\b.*debug|debug\s*=\s*args|argparse|--debug|verbose"),
         checker=_debug_flag,
+        code_only=True,
         recommendation="Never enable debug mode in production; derive it from the environment with a safe default of False.",
         remediation="DEBUG = os.environ.get('DJANGO_DEBUG', '') == '1'  # defaults to False",
     ),

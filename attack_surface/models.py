@@ -10,9 +10,11 @@ import ast
 import bisect
 import hashlib
 import re
+import tokenize
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -104,6 +106,63 @@ INPUT_MARKERS = re.compile(
     re.IGNORECASE,
 )
 
+# --------------------------------------------------------------------------- #
+# Suppression + string-span helpers
+# --------------------------------------------------------------------------- #
+
+#: Inline suppression: ``att4ck:ignore`` optionally followed by ``[ID,...]`` or
+#: ``=ID,...`` / ``:ID,...``. Also accepts the ``noqa: att4ck`` spelling.
+_SUPPRESS_RE = re.compile(
+    r"att4ck\s*:\s*ignore\s*(?:[\[=:]\s*([A-Za-z0-9_\-,\s]+?)\s*\]?)?(?:\s|$)"
+    r"|noqa\s*:\s*att4ck(?:[\[=:]\s*([A-Za-z0-9_\-,\s]+?)\s*\]?)?(?:\s|$)",
+    re.IGNORECASE,
+)
+
+
+def _parse_suppressions(lines: Sequence[str]) -> dict[int, tuple[set[str] | None, bool]]:
+    """Map 1-based line -> (suppressed rule ids, standalone).
+
+    ``ids`` is ``None`` for "all rules". ``standalone`` is True when the marker
+    is a whole-line comment (so it also covers the following code line); a
+    trailing marker on a code line only suppresses its own line.
+    """
+    result: dict[int, tuple[set[str] | None, bool]] = {}
+    for idx, line in enumerate(lines, start=1):
+        if "att4ck" not in line.lower():
+            continue
+        match = _SUPPRESS_RE.search(line)
+        if not match:
+            continue
+        ids_raw = match.group(1) or match.group(2)
+        ids = {tok.strip().upper() for tok in ids_raw.split(",") if tok.strip()} if ids_raw else None
+        standalone = line.lstrip().startswith(_COMMENT_PREFIXES)
+        result[idx] = (ids, standalone)
+    return result
+
+
+def _python_string_comment_spans(ctx: FileContext) -> list[tuple[int, int]]:
+    """Return sorted ``(start, end)`` char offsets of Python string+comment tokens.
+
+    Returns an empty list for non-Python files or on any tokenisation error, so
+    callers simply fall back to treating every match as real.
+    """
+    if ctx.ext not in {".py", ".pyw", ".pyi"}:
+        return []
+    spans: list[tuple[int, int]] = []
+    try:
+        tokens = tokenize.generate_tokens(StringIO(ctx.text).readline)
+        for tok in tokens:
+            if tok.type in (tokenize.STRING, tokenize.COMMENT) or (
+                hasattr(tokenize, "FSTRING_MIDDLE") and tok.type == tokenize.FSTRING_MIDDLE
+            ):
+                start = ctx.line_start(tok.start[0]) + tok.start[1]
+                end = ctx.line_start(tok.end[0]) + tok.end[1]
+                spans.append((start, end))
+    except (tokenize.TokenError, IndentationError, SyntaxError, ValueError):
+        return []
+    spans.sort()
+    return spans
+
 
 @dataclass(slots=True)
 class FileEntry:
@@ -138,6 +197,9 @@ class FileContext:
         "_ast_attempted",
         "_lower_lines",
         "_comment_flags",
+        "_string_spans",
+        "_string_spans_attempted",
+        "_suppressions",
         "extra",
     )
 
@@ -150,6 +212,9 @@ class FileContext:
         self._ast_attempted = False
         self._lower_lines: list[str] | None = None
         self._comment_flags: list[bool] | None = None
+        self._string_spans: list[tuple[int, int]] | None = None
+        self._string_spans_attempted = False
+        self._suppressions: dict[int, tuple[set[str] | None, bool]] | None = None
         self.extra: dict[str, Any] = {}
 
     # -- basic accessors --------------------------------------------------- #
@@ -197,6 +262,68 @@ class FileContext:
         if 1 <= number <= len(self._comment_flags):
             return self._comment_flags[number - 1]
         return False
+
+    # -- suppression ------------------------------------------------------- #
+
+    def is_suppressed(self, number: int, rule_id: str) -> bool:
+        """True when an ``att4ck:ignore`` marker suppresses ``rule_id`` here.
+
+        A marker on the finding's own line, or on the line immediately above,
+        applies. ``att4ck:ignore`` alone suppresses every rule on the line;
+        ``att4ck:ignore[ID1,ID2]`` (or ``=ID1,ID2``) suppresses only those ids.
+        """
+        if self._suppressions is None:
+            self._suppressions = _parse_suppressions(self.lines)
+        # Own line: any marker applies. Line above: only a standalone comment marker.
+        for target in (number, number - 1):
+            entry = self._suppressions.get(target)
+            if entry is None:
+                continue
+            ids, standalone = entry
+            if target == number - 1 and not standalone:
+                continue
+            if ids is None or rule_id in ids:
+                return True
+        return False
+
+    # -- string / comment spans (Python) ----------------------------------- #
+
+    @property
+    def string_spans(self) -> list[tuple[int, int]]:
+        """Sorted ``(start, end)`` char offsets of string + comment tokens.
+
+        Only computed for Python source; empty for other languages. Used to
+        drop matches that fall inside quoted text for ``code_only`` rules.
+        """
+        if not self._string_spans_attempted:
+            self._string_spans_attempted = True
+            self._string_spans = _python_string_comment_spans(self)
+        return self._string_spans or []
+
+    def offset_in_string_or_comment(self, offset: int) -> bool:
+        spans = self.string_spans
+        if not spans:
+            return False
+        idx = bisect.bisect_right(spans, (offset, offset + 1)) - 1
+        if 0 <= idx < len(spans):
+            start, end = spans[idx]
+            if start <= offset < end:
+                return True
+        # The bisect key can land one entry early for zero-width edge cases.
+        if idx + 1 < len(spans):
+            start, end = spans[idx + 1]
+            if start <= offset < end:
+                return True
+        return False
+
+    def line_start(self, number: int) -> int:
+        """Char offset in ``text`` where 1-based line ``number`` begins."""
+        if self._line_starts is None:
+            self.line_at_offset(0)  # populates _line_starts
+        starts = self._line_starts or [0]
+        if 1 <= number <= len(starts):
+            return starts[number - 1]
+        return 0
 
     # -- offsets ----------------------------------------------------------- #
 
@@ -339,6 +466,12 @@ class Rule:
     file_checker: FileCheckerFn | None = None
     sanitizer_scope: str = "window"  # "window" | "line" | "statement"
     use_surface_indicators: bool = True
+    #: When True, matches that fall inside a Python string literal or comment are
+    #: ignored (for AST-parseable files). Set on rules that detect *code
+    #: constructs* (deserialization calls, eval/exec, DOM sinks, debug handlers)
+    #: so pattern text quoted in source does not produce false positives. Leave
+    #: False for rules that inspect string/config content (SQLi, secrets, CORS).
+    code_only: bool = False
     tags: Sequence[str] = ()
 
     # compiled state (populated in __post_init__)

@@ -154,7 +154,7 @@ class FileWalker:
         patterns = list(DEFAULT_IGNORE_GLOBS) + [p for p in exclude if p]
         if respect_gitignore:
             patterns.extend(self._load_gitignore(self.root))
-        self.spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+        self.spec = pathspec.GitIgnoreSpec.from_lines(patterns)
         self.dir_excludes = [p.rstrip("/") for p in exclude if p.endswith("/")]
 
     @staticmethod
@@ -302,11 +302,15 @@ def _run_line_rules(ctx: FileContext, rules: Sequence[Rule]) -> Iterator[tuple[R
                 continue
             if not rule.scan_comments and ctx.is_comment(line_no):
                 continue
+            if ctx.is_suppressed(line_no, rule.id):
+                continue
             for pattern in rule._patterns:
                 match = pattern.search(line)
                 if not match:
                     continue
                 if rule.matches_negative(line):
+                    break
+                if rule.code_only and ctx.offset_in_string_or_comment(ctx.line_start(line_no) + match.start()):
                     break
                 hit: Hit | bool | None = True
                 if rule.checker is not None:
@@ -335,6 +339,10 @@ def _run_multiline_rules(ctx: FileContext, rules: Sequence[Rule]) -> Iterator[tu
                     continue
                 if not rule.scan_comments and ctx.is_comment(line_no):
                     continue
+                if ctx.is_suppressed(line_no, rule.id):
+                    continue
+                if rule.code_only and ctx.offset_in_string_or_comment(match.start()):
+                    continue
                 hit: Hit | bool | None = True
                 if rule.checker is not None:
                     try:
@@ -360,6 +368,8 @@ def _run_file_checkers(ctx: FileContext, rules: Sequence[Rule]) -> Iterator[tupl
             continue
         for hit in hits:
             if not rule.scan_comments and ctx.is_comment(hit.line):
+                continue
+            if ctx.is_suppressed(hit.line, rule.id):
                 continue
             yield rule, _accept_hit(rule, ctx, hit)
 

@@ -111,7 +111,9 @@ class WebCrawler:
             for tag, attr in (("a", "href"), ("script", "src"), ("link", "href"), ("form", "action"), ("img", "src")):
                 for el in soup.find_all(tag):
                     ref = el.get(attr)
-                    if not ref:
+                    if isinstance(ref, (list, tuple)):
+                        ref = ref[0] if ref else None
+                    if not ref or not isinstance(ref, str):
                         continue
                     absolute = urljoin(url, ref)
                     if absolute.endswith(".js"):
