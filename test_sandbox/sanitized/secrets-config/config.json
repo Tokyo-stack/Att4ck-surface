@@ -1,0 +1,7 @@
+{
+  "database": {
+    "host": "db.internal",
+    "password": "${DB_PASSWORD}"
+  },
+  "stripe_secret_key": "${STRIPE_SECRET_KEY}"
+}

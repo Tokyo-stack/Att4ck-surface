@@ -9,7 +9,6 @@ build/
 dist/
 wheels/
 .eggs/
-MANIFEST
 
 # Virtual environments
 venv/
@@ -17,42 +16,38 @@ venv/
 env/
 ENV/
 
-# Scan output (keep the directory, ignore its contents)
+# Scan output
 output/*
 !output/.gitkeep
+
+# Findings artifacts anywhere
 findings.json
+findings.csv
 findings.db
-*.db
+report.html
 *.sqlite
 *.sqlite3
 
-# Logs
-*.log
-logs/
+# Test / coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
 
-# Debug / scratch scripts
-debug_*.py
-test_*.py
-check.py
-filter.py
-fix_init.py
-test_sandbox/
-
-# Temp files
-temp/
-tmp/
-*.tmp
-*.bak
-*.old
-
-# IDE / editors
+# IDE / editors / OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS files
 .DS_Store
 Thumbs.db
-Desktop.ini
+
+# Temp
+*.tmp
+*.bak
+*.old
+tmp/
+temp/

@@ -1,6 +1,5 @@
-"""
-Communication Surface - Email, payments, third-party rules
-"""
-from attack_surface.communication_surface.communications import COMMUNICATIONS_RULES
+"""Communication surface package - see :mod:`attack_surface.communication_surface.communications`."""
 
-__all__ = ['COMMUNICATIONS_RULES']
+from attack_surface.communication_surface.communications import RULES
+
+__all__ = ["RULES"]

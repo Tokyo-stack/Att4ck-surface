@@ -1,6 +1,5 @@
-"""
-Frontend Surface - JavaScript, redirects, assets rules
-"""
-from attack_surface.frontend_surface.frontend import FRONTEND_RULES
+"""Frontend surface package - see :mod:`attack_surface.frontend_surface.frontend`."""
 
-__all__ = ['FRONTEND_RULES']
+from attack_surface.frontend_surface.frontend import RULES
+
+__all__ = ["RULES"]

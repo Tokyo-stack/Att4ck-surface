@@ -1,7 +1,9 @@
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-rich>=13.7.0
-colorama>=0.4.6
-tqdm>=4.66.0
-urllib3>=2.0.0
+# ATT4ck Surface - core runtime dependencies (minimal, pinned to compatible ranges)
+rich>=13.7,<15
+click>=8.1,<9
+pathspec>=0.12,<1
+
+# Optional: live-target crawling / XSS probing (the `crawl` command)
+#   pip install "att4ck-surface[live]"
+# requests>=2.31,<3
+# beautifulsoup4>=4.12,<5

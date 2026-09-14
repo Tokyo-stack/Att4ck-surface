@@ -1,6 +1,5 @@
-"""
-File Surface - File uploads, downloads, backups rules
-"""
-from attack_surface.file_surface.file import FILE_RULES
+"""File surface package - see :mod:`attack_surface.file_surface.file`."""
 
-__all__ = ['FILE_RULES']
+from attack_surface.file_surface.file import RULES
+
+__all__ = ["RULES"]

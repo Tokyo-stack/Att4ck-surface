@@ -1,6 +1,5 @@
-"""
-Infrastructure Surface - Containers, CI/CD, dependencies rules
-"""
-from attack_surface.infrastructure_surface.infrastructure import INFRASTRUCTURE_RULES
+"""Infrastructure surface package - see :mod:`attack_surface.infrastructure_surface.infrastructure`."""
 
-__all__ = ['INFRASTRUCTURE_RULES']
+from attack_surface.infrastructure_surface.infrastructure import RULES
+
+__all__ = ["RULES"]

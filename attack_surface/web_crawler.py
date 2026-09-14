@@ -1,191 +1,131 @@
+"""Optional live-target crawler used by the ``crawl`` command.
+
+Requires the optional 'live' extra (requests + beautifulsoup4). Kept minimal:
+its job is endpoint discovery, not vulnerability detection (that is the static
+engine's role). Imported lazily so the core tool has zero runtime dependencies
+beyond the standard analysis stack.
 """
-Web Crawler Module - Enhanced for endpoint discovery
-"""
 
-import os
-import re
-import tempfile
-import requests
-from urllib.parse import urljoin, urlparse, quote
-from typing import List, Dict, Set, Optional
-from bs4 import BeautifulSoup
-from rich.console import Console
+from __future__ import annotations
 
-console = Console()
+from collections import deque
+from dataclasses import dataclass, field
+from urllib.parse import urljoin, urlparse
+
+try:
+    import requests
+    from bs4 import BeautifulSoup
+
+    _LIVE_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional
+    _LIVE_AVAILABLE = False
 
 
-def sanitize_filename(filename: str) -> str:
-    """Sanitize filename to remove invalid characters"""
-    filename = filename.split('?')[0]
-    filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-    filename = re.sub(r'_+', '_', filename)
-    if not filename.endswith('.js'):
-        filename += '.js'
-    return filename
+@dataclass(slots=True)
+class PageRecord:
+    """HTTP-level snapshot of one fetched page, consumed by the live analyzer."""
+
+    url: str
+    final_url: str
+    status: int
+    headers: dict[str, str]
+    set_cookie: list[str] = field(default_factory=list)
+    html: str = ""
+
+_USER_AGENT = "ATT4ck-Surface/1.0 (+https://github.com/Tokyo-stack/Att4ck-surface)"
 
 
 class WebCrawler:
-    def __init__(self, target_url: str, max_pages: int = 100):
-        self.target_url = target_url.rstrip('/')
-        self.base_domain = urlparse(target_url).netloc
+    """Breadth-first, same-origin crawler that collects pages, JS files and endpoints."""
+
+    def __init__(self, target_url: str, max_pages: int = 50, timeout: float = 10.0) -> None:
+        if not _LIVE_AVAILABLE:  # pragma: no cover - optional
+            raise ImportError("web_crawler needs 'requests' and 'beautifulsoup4' (pip install att4ck-surface[live])")
+        self.target_url = target_url.rstrip("/")
+        self.base_domain = urlparse(self.target_url).netloc
         self.max_pages = max_pages
-        self.visited_urls: Set[str] = set()
-        self.discovered_urls: Set[str] = set()
-        self.js_files: List[str] = []
-        self.html_pages: List[str] = []
-        self.endpoints: Set[str] = set()
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        self.timeout = timeout
+        self.visited: set[str] = set()
+        self.endpoints: set[str] = set()
+        self.js_files: set[str] = set()
+        self.records: list[PageRecord] = []
         self.session = requests.Session()
-        self.session.headers.update(self.headers)
-    
-    def crawl(self) -> Dict[str, List[str]]:
-        """Main crawling method"""
-        console.print(f"[cyan]Crawling: {self.target_url}[/cyan]")
-        
+        self.session.headers.update({"User-Agent": _USER_AGENT})
+
+    @staticmethod
+    def _registrable(netloc: str) -> str:
+        """Normalise a netloc for comparison: drop a leading ``www.`` and any port."""
+        host = netloc.split("@")[-1].split(":")[0].lower()
+        return host[4:] if host.startswith("www.") else host
+
+    def _same_origin(self, url: str) -> bool:
+        netloc = urlparse(url).netloc
+        return netloc == "" or self._registrable(netloc) == self._registrable(self.base_domain)
+
+    @staticmethod
+    def _raw_set_cookies(resp) -> list[str]:  # noqa: ANN001
+        """Return each individual ``Set-Cookie`` header (requests collapses them)."""
         try:
-            response = self.session.get(self.target_url, timeout=10)
-            if response.status_code != 200:
-                console.print(f"[red]Failed to fetch: {response.status_code}[/red]")
-                return {'js_files': [], 'html_pages': [], 'endpoints': []}
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            for link in soup.find_all('a', href=True):
-                href = link['href']
-                full_url = urljoin(self.target_url, href)
-                if self._is_same_domain(full_url):
-                    self.discovered_urls.add(full_url)
-                    self._extract_endpoints(full_url)
-            
-            for script in soup.find_all('script', src=True):
-                src = script['src']
-                if src.startswith('//'):
-                    src = 'https:' + src
-                elif src.startswith('/'):
-                    src = urljoin(self.target_url, src)
-                elif not src.startswith('http'):
-                    src = urljoin(self.target_url, src)
-                
-                clean_url = src.split('?')[0]
-                if clean_url.endswith('.js') and clean_url not in self.js_files:
-                    self.js_files.append(clean_url)
-            
-            for script in soup.find_all('script', src=False):
-                if script.string:
-                    self._extract_endpoints_from_js(script.string)
-            
-            for tag in soup.find_all(attrs={"data-url": True}):
-                endpoint = tag.get('data-url')
-                if endpoint:
-                    self.endpoints.add(endpoint)
-            
-            for form in soup.find_all('form'):
-                action = form.get('action')
-                if action:
-                    self.endpoints.add(action)
-            
-            console.print(f"[green]Found: {len(self.js_files)} JS files, {len(self.discovered_urls)} URLs, {len(self.endpoints)} endpoints[/green]")
-            
-        except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
-        
-        return {
-            'js_files': self.js_files,
-            'html_pages': list(self.discovered_urls),
-            'endpoints': list(self.endpoints)
-        }
-    
-    def _is_same_domain(self, url: str) -> bool:
-        try:
-            parsed = urlparse(url)
-            return parsed.netloc == self.base_domain or not parsed.netloc
-        except:
-            return False
-    
-    def _extract_endpoints(self, url: str):
-        parsed = urlparse(url)
-        path = parsed.path
-        if path and path != '/':
-            self.endpoints.add(path)
-        segments = path.split('/')
-        for i in range(1, len(segments) + 1):
-            partial = '/'.join(segments[:i])
-            if partial:
-                self.endpoints.add('/' + partial)
-        if parsed.query:
-            params = parsed.query.split('&')
-            for param in params:
-                if '=' in param:
-                    key = param.split('=')[0]
-                    self.endpoints.add(f'?{key}=')
-    
-    def _extract_endpoints_from_js(self, js_content: str):
-        patterns = [
-            r"['\"](/api/[^'\"]+)['\"]",
-            r"['\"](/v\d+/[^'\"]+)['\"]",
-            r"['\"](/admin/[^'\"]+)['\"]",
-            r"['\"](/user/[^'\"]+)['\"]",
-            r"['\"](/login)['\"]",
-            r"['\"](/logout)['\"]",
-            r"['\"](/register)['\"]",
-            r"['\"](/dashboard)['\"]",
-            r"['\"](/profile)['\"]",
-            r"fetch\s*\(\s*['\"]([^'\"]+)['\"]",
-            r"axios\.(get|post|put|delete)\s*\(\s*['\"]([^'\"]+)['\"]",
-            r"url\s*:\s*['\"]([^'\"]+)['\"]",
-            r"endpoint\s*:\s*['\"]([^'\"]+)['\"]",
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, js_content, re.IGNORECASE)
-            for match in matches:
-                if isinstance(match, tuple):
-                    endpoint = match[-1] if len(match) > 1 else match[0]
-                else:
-                    endpoint = match
-                if endpoint and endpoint.startswith('/'):
-                    self.endpoints.add(endpoint)
-    
-    def download_js_files(self, output_dir: str) -> List[str]:
-        """Download JS files with sanitized filenames"""
-        os.makedirs(output_dir, exist_ok=True)
-        downloaded = []
-        failed = 0
-        
-        for i, js_url in enumerate(self.js_files):
+            raw = getattr(resp, "raw", None)
+            headers = getattr(raw, "headers", None)
+            if headers is not None and hasattr(headers, "getlist"):
+                values = headers.getlist("Set-Cookie")
+                if values:
+                    return list(values)
+        except Exception:  # pragma: no cover - defensive
+            pass
+        value = resp.headers.get("Set-Cookie")
+        return [value] if value else []
+
+    def crawl(self) -> dict[str, list[str]]:
+        queue: deque[str] = deque([self.target_url])
+        while queue and len(self.visited) < self.max_pages:
+            url = queue.popleft()
+            if url in self.visited:
+                continue
+            self.visited.add(url)
             try:
-                filename = os.path.basename(js_url)
-                sanitized = sanitize_filename(filename)
-                filepath = os.path.join(output_dir, sanitized)
-                
-                if os.path.exists(filepath):
-                    downloaded.append(filepath)
-                    continue
-                
-                if js_url.startswith('//'):
-                    js_url = 'https:' + js_url
-                elif js_url.startswith('/'):
-                    js_url = urljoin(self.target_url, js_url)
-                
-                response = self.session.get(js_url, timeout=10)
-                if response.status_code == 200:
-                    with open(filepath, 'w', encoding='utf-8', errors='ignore') as f:
-                        f.write(response.text)
-                    downloaded.append(filepath)
-                else:
-                    failed += 1
-            except Exception as e:
-                failed += 1
-                if failed <= 10:
-                    console.print(f"[dim]Error downloading {js_url}: {e}[/dim]")
-        
-        if failed > 10:
-            console.print(f"[dim]... and {failed - 10} more download errors[/dim]")
-        elif failed > 0:
-            console.print(f"[dim]{failed} files failed to download[/dim]")
-        
-        return downloaded
-    
-    def get_endpoints(self) -> List[str]:
-        return sorted(list(self.endpoints))
+                resp = self.session.get(url, timeout=self.timeout, allow_redirects=True)
+            except requests.RequestException:
+                continue
+            # If the seed URL redirected (e.g. apex -> www), adopt the final host
+            # so discovered links are not wrongly treated as cross-origin.
+            if url == self.target_url and resp.url:
+                self.base_domain = urlparse(str(resp.url)).netloc or self.base_domain
+            content_type = resp.headers.get("Content-Type", "")
+            is_html = "html" in content_type
+            self.records.append(
+                PageRecord(
+                    url=url,
+                    final_url=str(resp.url),
+                    status=resp.status_code,
+                    headers=dict(resp.headers.items()),
+                    set_cookie=self._raw_set_cookies(resp),
+                    html=resp.text if is_html else "",
+                )
+            )
+            if not is_html:
+                continue
+            self.endpoints.add(url)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for tag, attr in (("a", "href"), ("script", "src"), ("link", "href"), ("form", "action"), ("img", "src")):
+                for el in soup.find_all(tag):
+                    ref = el.get(attr)
+                    if not ref:
+                        continue
+                    absolute = urljoin(url, ref)
+                    if absolute.endswith(".js"):
+                        self.js_files.add(absolute)
+                    if self._same_origin(absolute) and absolute not in self.visited:
+                        if "?" in absolute or tag == "form":
+                            self.endpoints.add(absolute)
+                        if tag == "a":
+                            queue.append(absolute.split("#")[0])
+        return {
+            "pages": sorted(self.visited),
+            "endpoints": sorted(self.endpoints),
+            "js_files": sorted(self.js_files),
+        }
+
+
+__all__ = ["WebCrawler"]

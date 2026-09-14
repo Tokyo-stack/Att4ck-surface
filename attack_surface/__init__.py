@@ -1,25 +1,44 @@
-"""
-ATT4ck Surface - Attack Surface Mapping & Security Review Framework
+"""ATT4ck Surface - Attack Surface Mapping & Security Review Framework.
+
+Public API::
+
+    from attack_surface import scan_path, SurfaceScanner, ScanConfig, export_results
+
+The live-target helpers (:mod:`attack_surface.web_crawler`,
+:mod:`attack_surface.xss_scanner`) are imported lazily because they are only
+needed for the optional ``crawl`` command.
 """
 
-__version__ = "1.0.0"
+from __future__ import annotations
+
+from attack_surface.models import Finding, Rule, ScanConfig, ScanResult, Severity, Status
+from attack_surface.rules import SURFACE_KEYS, SURFACES, load_rules, rules_for_surfaces
+from attack_surface.scanner import SurfaceScanner, scan_path
+from attack_surface.version import __version__
+
 __author__ = "Tokyo"
 
-from attack_surface.scanner import SurfaceScanner
-from attack_surface.xss_scanner import XSSScanner
-from attack_surface.rules import RULES, get_rules_by_category, get_rule_count
-from attack_surface.web_crawler import WebCrawler
-from attack_surface.exporter import export_results
-from attack_surface.risk_engine import get_risk, calculate_risk_score
-
 __all__ = [
-    'SurfaceScanner',
-    'XSSScanner',
-    'RULES',
-    'get_rules_by_category',
-    'get_rule_count',
-    'WebCrawler',
-    'export_results',
-    'get_risk',
-    'calculate_risk_score'
+    "Finding",
+    "Rule",
+    "SURFACES",
+    "SURFACE_KEYS",
+    "ScanConfig",
+    "ScanResult",
+    "Severity",
+    "Status",
+    "SurfaceScanner",
+    "__author__",
+    "__version__",
+    "export_results",
+    "load_rules",
+    "rules_for_surfaces",
+    "scan_path",
 ]
+
+
+def export_results(*args, **kwargs):  # type: ignore[no-untyped-def]
+    """Proxy to :func:`attack_surface.exporter.export_results` (lazy import)."""
+    from attack_surface.exporter import export_results as _export
+
+    return _export(*args, **kwargs)

@@ -1,0 +1,9 @@
+name: deploy
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo publishing
+        env:
+          NPM_TOKEN: npm_9f8A7b6C5d4E3f2G1h0I9j8K7l6M5n4O3p2Q

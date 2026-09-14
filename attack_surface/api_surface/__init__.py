@@ -1,6 +1,5 @@
-"""
-API Surface - API endpoints, webhooks, monitoring rules
-"""
-from attack_surface.api_surface.api import API_RULES
+"""Api surface package - see :mod:`attack_surface.api_surface.api`."""
 
-__all__ = ['API_RULES']
+from attack_surface.api_surface.api import RULES
+
+__all__ = ["RULES"]

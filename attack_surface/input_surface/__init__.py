@@ -1,6 +1,5 @@
-"""
-Input Surface - User input, XSS, SQL injection rules
-"""
-from attack_surface.input_surface.input import INPUT_RULES
+"""Input surface package - see :mod:`attack_surface.input_surface.input`."""
 
-__all__ = ['INPUT_RULES']
+from attack_surface.input_surface.input import RULES
+
+__all__ = ["RULES"]

@@ -1,6 +1,5 @@
-"""
-IAM Surface - Authentication, Authorization rules
-"""
-from attack_surface.iam_surface.iam import IAM_RULES
+"""Iam surface package - see :mod:`attack_surface.iam_surface.iam`."""
 
-__all__ = ['IAM_RULES']
+from attack_surface.iam_surface.iam import RULES
+
+__all__ = ["RULES"]

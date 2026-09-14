@@ -1,571 +1,650 @@
-"""
-Scanner Module - Core scanning engine with endpoint verification
+"""Core scanning engine: file discovery, concurrent analysis and aggregation.
+
+The engine is deliberately split into small, side-effect free functions so
+that a file can be analysed in a worker thread *or* a worker process:
+
+* :class:`FileWalker`   – fast ``os.scandir`` based discovery with noise
+                          pruning and optional gitignore / user excludes.
+* :class:`RuleIndex`    – groups rules by extension / filename so each file
+                          only sees the rules that can apply to it.
+* :func:`analyze_file`  – runs path-only, line, multiline and file-level
+                          checkers, performs sanitization awareness and
+                          returns classified findings.
+* :class:`SurfaceScanner` – orchestrates the above with a thread or process
+                          pool and aggregates :class:`ScanResult`.
 """
 
+from __future__ import annotations
+
+import logging
 import os
-import re
-import json
-import requests
-import concurrent.futures
-from datetime import datetime
+import time
+from collections import deque
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple
 
-from attack_surface.rules import RULES
-from attack_surface.risk_engine import get_risk
+import pathspec
 
+from attack_surface.models import (
+    FileContext,
+    FileEntry,
+    Finding,
+    Hit,
+    Rule,
+    ScanConfig,
+    ScanResult,
+    ScanStats,
+    Severity,
+)
+from attack_surface.risk_engine import (
+    build_finding,
+    dedupe,
+    filter_by_threshold,
+    prioritize,
+    summarize,
+)
+from attack_surface.rules import SURFACE_BY_KEY, load_rules, resolve_surface_keys, rules_for_surfaces
 
-# ============================================================================
-# COMPLETE FALSE POSITIVE FILTERS
-# ============================================================================
+logger = logging.getLogger("attack_surface.scanner")
 
-SKIP_DIRS = {
-    '.next', '_next', 'out', 'dist', 'build', 'public', 'static',
-    'assets', '.cache', 'node_modules', 'bower_components', 'vendor',
-    'venv', '.venv', 'env', '.env', '__pycache__', '.git', '.idea', '.vscode'
-}
+# --------------------------------------------------------------------------- #
+# Discovery configuration
+# --------------------------------------------------------------------------- #
 
-SKIP_FILE_PATTERNS = [
-    r'jquery', r'bootstrap', r'react', r'vue', r'angular', r'lodash',
-    r'underscore', r'moment', r'axios', r'swiper', r'slick', r'chart',
-    r'd3', r'three', r'gsap', r'anime', r'fabric', r'konva', r'pixi',
-    r'phaser', r'babylon', r'vendor', r'polyfills', r'runtime',
-    r'webpack', r'chunk', r'bundle', r'min\.js', r'map$',
-    r'^inline_js_\d+\.js$',
-    r'^[a-z0-9_-]{8,}\.js$',
-    r'^[a-z0-9_-]{8,}-[a-z0-9_-]*\.js$',
-]
+#: Directory names that are never descended into.
+DEFAULT_IGNORE_DIRS: frozenset[str] = frozenset(
+    {
+        ".git", ".hg", ".svn", ".bzr", "CVS",
+        "node_modules", "bower_components", "jspm_packages", ".pnpm-store", ".yarn",
+        "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox", ".nox", ".hypothesis",
+        "venv", ".venv", "env", "ENV", ".env.d", "virtualenv", ".virtualenvs", "site-packages",
+        "dist", "build", "_build", "out", ".next", ".nuxt", ".svelte-kit", ".angular", ".parcel-cache",
+        ".cache", ".gradle", ".idea", ".vscode", ".vs", ".terraform", ".serverless",
+        "target", "bin", "obj", "vendor", "Pods", "DerivedData", ".dart_tool", ".pub-cache",
+        "coverage", ".nyc_output", "htmlcov", ".eggs", "*.egg-info", ".ipynb_checkpoints",
+    }
+)
 
-SKIP_LINE_PATTERNS = [
-    r'console\.', r'// @ts-', r'// eslint-', r'/\* eslint-',
-    r'"use strict"', r"'use strict'", r'module\.exports',
-    r'exports\.', r'require\(', r'import\s+', r'export\s+',
-    r'sourceMappingURL', r'@license', r'@preserve',
-    r'__webpack_', r'__NEXT_DATA__', r'__next_s',
-    r'data-nscript', r'TURBOPACK', r'typeof window',
-    r'typeof document', r'process\.env', r'__DEV__',
-    r'__react_refresh', r'useState\(', r'useEffect\(',
-    r'useContext\(', r'useReducer\(', r'useCallback\(',
-    r'useMemo\(', r'useRef\(', r'forwardRef\(',
-    r'createElement\(', r'React\.', r'react/',
-    r'google-analytics', r'gtag\(', r'dataLayer', r'gtm\.',
-    r'google_tag_manager', r'fbq\(', r'twq\(',
-    r'linkedin\.', r'pinterest', r'snapchat', r'tiktok',
-    r'cookie-consent', r'cookieconsent', r'Cookiebot',
-    r'OneTrust', r'CookieNotice', r'cookies\.js',
-    r'analytics\.', r'hotjar', r'crazyegg', r'fullstory',
-    r'mixpanel', r'amplitude', r'segment\.', r'heap\.',
-    r'logrocket', r'sentry\.', r'datadog', r'newrelic',
-    r'cloudflare', r'cf-beacon', r'recaptcha', r'hcaptcha',
-    r'turnstile', r'facebook\.com/plugins', r'twitter\.com/widgets',
-    r'instagram\.com/embed', r'youtube\.com/embed',
-    r'vimeo\.com/embed', r'soundcloud\.com/player',
-    r'spotify\.com/embed', r'cdn\.', r'gstatic\.com',
-    r'cloudfront\.net', r'fonts\.googleapis\.com',
-    r'\(self\.__next_s=', r'__NEXT_DATA__',
-    r'data-nscript="', r'next-script',
-    r'__webpack_require__', r'__webpack_public_path__',
-    r'webpackChunk', r'webpackJsonp',
-    r'__vite_', r'__rollup_', r'__esbuild_',
-]
+#: Glob patterns (gitwildmatch) for files that are always skipped.
+DEFAULT_IGNORE_GLOBS: tuple[str, ...] = (
+    "*.min.js", "*.min.css", "*.map", "*.bundle.js", "*.chunk.js",
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "Pipfile.lock",
+    "composer.lock", "Cargo.lock", "Gemfile.lock", "go.sum", "*.egg-info/*",
+    "*.pyc", "*.pyo", "*.class", "*.o", "*.a", "*.so", "*.dll", "*.dylib", "*.exe",
+    "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.ico", "*.webp", "*.svgz", "*.psd",
+    "*.mp3", "*.mp4", "*.wav", "*.ogg", "*.avi", "*.mov", "*.mkv", "*.flac",
+    "*.woff", "*.woff2", "*.ttf", "*.otf", "*.eot",
+    "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx",
+    "*.whl", "*.jar", "*.war", "*.ear", "*.apk", "*.ipa", "*.dmg", "*.iso", "*.img",
+)
 
-VULN_PATTERNS = {
-    'authentication': [
-        (r'hashlib\.md5\s*\(', 'Weak Hashing - MD5'),
-        (r'hashlib\.sha1\s*\(', 'Weak Hashing - SHA1'),
-        (r'password\s*=\s*[\'"]\S+[\'"]', 'Hardcoded Password'),
-    ],
-    'authorization': [
-        (r'@app\.route\s*\([^)]*\)(?!.*@login_required)', 'Missing Auth - Flask'),
-        (r'app\.(get|post|put|delete)\s*\([^)]*\)(?!.*@login_required)', 'Missing Auth - Flask'),
-        (r'/admin.*(?!.*auth)', 'Exposed Admin Route'),
-    ],
-    'user-inputs': [
-        (r'eval\s*\(', 'Code Execution - eval'),
-        (r'exec\s*\(', 'Code Execution - exec'),
-        (r'system\s*\(', 'Code Execution - system'),
-        (r'popen\s*\(', 'Code Execution - popen'),
-        (r'subprocess\.(Popen|run|call)\s*\(', 'Code Execution - subprocess'),
-        (r'new\s+Function\s*\(', 'Code Execution - Function'),
-    ],
-    'api-endpoints': [
-        (r'/api/[^"\']+', 'API Endpoint'),
-        (r'/rest/[^"\']+', 'REST API'),
-        (r'/v\d+/\S+', 'API Version'),
-    ],
-    'graphql': [
-        (r'gql\s*`[^`]*\$\{', 'GraphQL Injection'),
-        (r'graphql\s*`[^`]*\$\{', 'GraphQL Injection'),
-        (r'\.query\s*\(\s*`[^`]*\$\{', 'GraphQL Query Injection'),
-    ],
-    'webhooks': [
-        (r'webhook[^"\']*', 'Webhook Endpoint'),
-        (r'stripe_webhook', 'Stripe Webhook'),
-        (r'github_webhook', 'GitHub Webhook'),
-    ],
-    'file-uploads': [
-        (r'request\.files', 'File Upload - request.files'),
-        (r'file\.save\s*\(', 'File Upload - save'),
-        (r'multer\s*\(', 'File Upload - multer'),
-        (r'upload\.single\s*\(', 'File Upload - single'),
-        (r'upload\.array\s*\(', 'File Upload - array'),
-    ],
-    'file-downloads': [
-        (r'send_file\s*\(', 'File Download - send_file'),
-        (r'send_from_directory\s*\(', 'File Download - send_from_directory'),
-        (r'fs\.readFile\s*\(', 'File Download - readFile'),
-        (r'file_get_contents\s*\(', 'File Download - file_get_contents'),
-    ],
-    'path-traversal': [
-        (r'\.\./\.\./', 'Path Traversal'),
-        (r'\.\.\\\.\.\\', 'Path Traversal - Windows'),
-        (r'os\.path\.join\s*\([^,]+,\s*[\'"]\.\.', 'Path Traversal - os.path.join'),
-        (r'path\.join\s*\([^,]+,\s*[\'"]\.\.', 'Path Traversal - path.join'),
-    ],
-    'admin-portals': [
-        (r'/admin[^"\']*', 'Admin Portal'),
-        (r'/administrator[^"\']*', 'Admin Portal'),
-        (r'/dashboard[^"\']*', 'Dashboard'),
-        (r'/control-panel[^"\']*', 'Control Panel'),
-    ],
-    'payment-systems': [
-        (r'card_number', 'Credit Card - card_number'),
-        (r'cvv', 'Credit Card - CVV'),
-        (r'credit_card', 'Credit Card - credit_card'),
-        (r'expiry_date', 'Credit Card - expiry_date'),
-    ],
-    'oauth-sso': [
-        (r'/oauth[^"\']*', 'OAuth Endpoint'),
-        (r'/sso[^"\']*', 'SSO Endpoint'),
-        (r'/saml[^"\']*', 'SAML Endpoint'),
-        (r'/oidc[^"\']*', 'OIDC Endpoint'),
-    ],
-    'secrets-config': [
-        (r'api[_-]?key\s*[:=]\s*[\'"]\S+[\'"]', 'API Key Hardcoded'),
-        (r'secret\s*[:=]\s*[\'"]\S+[\'"]', 'Secret Hardcoded'),
-        (r'token\s*[:=]\s*[\'"]\S+[\'"]', 'Token Hardcoded'),
-        (r'password\s*[:=]\s*[\'"]\S+[\'"]', 'Password Hardcoded'),
-        (r'AKIA[0-9A-Z]{16}', 'AWS Key'),
-        (r'sk-[a-zA-Z0-9]{20,}', 'OpenAI Key'),
-        (r'gh[pousr]_[a-zA-Z0-9]{36,}', 'GitHub Token'),
-        (r'xox[baprs]-[a-zA-Z0-9-]+', 'Slack Token'),
-        (r'eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}', 'JWT Token'),
-    ],
-    'environment-files': [
-        (r'DB_PASSWORD\s*=\s*\S+', 'DB Password in .env'),
-        (r'SECRET_KEY\s*=\s*\S+', 'Secret Key in .env'),
-        (r'API_KEY\s*=\s*\S+', 'API Key in .env'),
-        (r'\.env\b', 'Environment File'),
-    ],
-    'cloud-storage': [
-        (r'public-read', 'S3 Public Read'),
-        (r'public_read', 'S3 Public Read'),
-        (r'AllowedOrigins\s*:\s*\*', 'S3 CORS Wildcard'),
-        (r'aws_s3_bucket', 'AWS S3 Bucket'),
-    ],
-    'database': [
-        (r'\.execute\s*\(\s*[\'"].*[\'"]\s*%', 'SQL Injection - execute %'),
-        (r'\.execute\s*\(\s*f[\'"].*\{', 'SQL Injection - f-string'),
-        (r'SELECT.*\s*\+\s*.*\s*FROM', 'SQL Injection - concat'),
-        (r'mongodb://\S+', 'MongoDB Connection'),
-        (r'mysql://\S+', 'MySQL Connection'),
-        (r'postgres://\S+', 'PostgreSQL Connection'),
-    ],
-    'message-queues': [
-        (r'pickle\.loads\s*\(', 'Insecure Deserialization - pickle'),
-        (r'yaml\.load\s*\(', 'Insecure Deserialization - yaml'),
-    ],
-    'logging': [
-        (r'logger\.(info|debug|error)\(.*password', 'Password in Logs'),
-        (r'console\.log\(.*token', 'Token in Console'),
-        (r'console\.log\(.*secret', 'Secret in Console'),
-    ],
-    'monitoring': [
-        (r'/metrics[^"\']*', 'Metrics Endpoint'),
-        (r'/actuator[^"\']*', 'Actuator Endpoint'),
-        (r'/health[^"\']*', 'Health Check'),
-        (r'/healthz[^"\']*', 'Health Check'),
-        (r'/status[^"\']*', 'Status Endpoint'),
-    ],
-    'debug-endpoints': [
-        (r'debug\s*=\s*True', 'Debug Mode - True'),
-        (r'debug\s*=\s*true', 'Debug Mode - true'),
-        (r'NODE_ENV\s*=\s*[\'"]development[\'"]', 'Node Dev Mode'),
-        (r'APP_DEBUG\s*=\s*true', 'APP_DEBUG'),
-        (r'FLASK_DEBUG\s*=\s*1', 'Flask Debug'),
-        (r'/debug[^"\']*', 'Debug Endpoint'),
-        (r'/test[^"\']*', 'Test Endpoint'),
-        (r'/dev[^"\']*', 'Dev Endpoint'),
-    ],
-    'documentation': [
-        (r'/swagger[^"\']*', 'Swagger UI'),
-        (r'/swagger-ui[^"\']*', 'Swagger UI'),
-        (r'/docs[^"\']*', 'Docs'),
-        (r'/redoc[^"\']*', 'ReDoc'),
-        (r'/openapi[^"\']*', 'OpenAPI'),
-        (r'/api-docs[^"\']*', 'API Docs'),
-    ],
-    'dependencies': [
-        (r'[A-Za-z0-9_\-]+==latest', 'Unpinned - latest'),
-        (r'"[A-Za-z0-9_\-]+":\s*"\*"', 'Unpinned - *'),
-    ],
-    'ci-cd': [
-        (r'github_token\s*:\s*\S+', 'GitHub Token in CI'),
-        (r'aws_secret\s*:\s*\S+', 'AWS Secret in CI'),
-        (r'secrets\s*:\s*[\'"]\S+[\'"]', 'Secrets in CI'),
-        (r'Jenkinsfile', 'Jenkinsfile'),
-        (r'\.github/', 'GitHub Actions'),
-    ],
-    'containers': [
-        (r'FROM.*latest', 'Docker - latest tag'),
-        (r'(?i)^USER\s+root', 'Docker - root user'),
-        (r'RUN\s+.*sudo', 'Docker - sudo'),
-    ],
-    'dns': [
-        (r'socket\.gethostbyname\s*\(', 'DNS - gethostbyname'),
-        (r'dns\.resolve\s*\(', 'DNS - resolve'),
-    ],
-    'server-config': [
-        (r'Access-Control-Allow-Origin\s*:\s*\*', 'CORS Wildcard'),
-        (r'origin\s*:\s*[\'"]\*[\'"]', 'CORS Wildcard'),
-        (r'X-Powered-By', 'Server Info - X-Powered-By'),
-        (r'Server:\s*\S+', 'Server Info'),
-    ],
-    'backups': [
-        (r'\.bak$', 'Backup File'),
-        (r'\.old$', 'Old File'),
-        (r'\.tmp$', 'Temporary File'),
-        (r'backup_\S+\.sql', 'SQL Backup'),
-        (r'backup\.zip', 'ZIP Backup'),
-        (r'database\.sql', 'Database SQL'),
-        (r'db\.sql', 'Database SQL'),
-    ],
-    'source-control': [
-        (r'\.git/config', 'Git Config'),
-        (r'git\s+clone\s+https://[A-Za-z0-9]+:[A-Za-z0-9]+@', 'Git Credentials'),
-    ],
-    'miscellaneous': [
-        (r'ftplib\.FTP\s*\(', 'FTP - unencrypted'),
-        (r'telnetlib\.Telnet\s*\(', 'Telnet - unencrypted'),
-        (r'xml\.etree\.ElementTree\.parse', 'XXE - ElementTree'),
-        (r'XMLReader\s*\(\s*[\'"]http://', 'XXE - XMLReader'),
-        (r'DOMDocument\s*\(\s*[\'"]http://', 'XXE - DOMDocument'),
-    ],
-    'ssrf': [
-        (r'requests\.get\s*\(\s*[\'"]https?://.*\+\s*', 'SSRF - requests.get'),
-        (r'fetch\s*\(\s*[\'"]https?://.*\+\s*', 'SSRF - fetch'),
-        (r'axios\.get\s*\(\s*[\'"]https?://.*\+\s*', 'SSRF - axios.get'),
-        (r'urllib\.request\.urlopen\s*\(\s*[\'"]https?://.*\+\s*', 'SSRF - urlopen'),
-    ],
-    'redirects': [
-        (r'redirect\s*\(\s*request\.', 'Open Redirect - request'),
-        (r'res\.redirect\s*\([^)]*req\.', 'Open Redirect - req'),
-        (r'redirect_to\s*=\s*request\.', 'Open Redirect - redirect_to'),
-        (r'return\s+redirect\s*\([^)]*request\.', 'Open Redirect - return'),
-        (r'location\.href\s*=\s*request\.', 'Open Redirect - location.href'),
-    ],
-}
+#: Extensions treated as binary without reading a single byte.
+BINARY_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".tiff", ".psd",
+        ".mp3", ".mp4", ".wav", ".ogg", ".avi", ".mov", ".mkv", ".flac", ".m4a",
+        ".woff", ".woff2", ".ttf", ".otf", ".eot",
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".zip", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar", ".tar", ".zst",
+        ".whl", ".jar", ".war", ".ear", ".apk", ".ipa", ".dmg", ".iso", ".img",
+        ".pyc", ".pyo", ".class", ".o", ".a", ".so", ".dll", ".dylib", ".exe", ".bin",
+        ".sqlite", ".sqlite3", ".db", ".mdb", ".p12", ".pfx", ".jks", ".keystore", ".der",
+    }
+)
+
+_TEXT_SAMPLE = 8192
 
 
-def safe_serializer(obj):
-    """Custom JSON serializer for non-serializable objects"""
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    if hasattr(obj, '__dict__'):
-        return str(obj)
-    return str(obj)
-
-
-def verify_endpoint(url: str, timeout: int = 5) -> bool:
-    """
-    Verify if an endpoint actually exists by making a HEAD request.
-    Returns True only if status code is 200 OK.
-    """
-    try:
-        response = requests.head(url, timeout=timeout, allow_redirects=True)
-        if response.status_code == 200:
+def is_binary_sample(sample: bytes) -> bool:
+    """Heuristic binary detection on the first few KB of a file."""
+    if not sample:
+        return False
+    if b"\x00" in sample:
+        return True
+    # Proportion of non-text bytes (control chars excluding common whitespace).
+    text_chars = bytes(range(32, 127)) + b"\n\r\t\b\f\x1b"
+    high = sum(1 for b in sample if b > 127)
+    control = sum(1 for b in sample if b < 32 and b not in b"\n\r\t\b\f\x1b")
+    if control / len(sample) > 0.05:
+        return True
+    # Mostly high bytes but no valid UTF-8 => binary
+    if high / len(sample) > 0.3:
+        try:
+            sample.decode("utf-8")
+        except UnicodeDecodeError:
             return True
-        elif response.status_code in [301, 302, 307, 308]:
+    return len(sample.translate(None, text_chars)) / len(sample) > 0.6
+
+
+def decode_bytes(data: bytes) -> str:
+    """Decode with utf-8 (BOM aware) and fall back to latin-1, never raising."""
+    for encoding in ("utf-8-sig", "utf-8"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    try:
+        return data.decode("utf-16") if data[:2] in (b"\xff\xfe", b"\xfe\xff") else data.decode("latin-1")
+    except UnicodeDecodeError:  # pragma: no cover - latin-1 never fails
+        return data.decode("latin-1", errors="replace")
+
+
+# --------------------------------------------------------------------------- #
+# File walker
+# --------------------------------------------------------------------------- #
+
+
+class FileWalker:
+    """Recursive discovery with pruning of noisy directories."""
+
+    def __init__(
+        self,
+        root: Path,
+        exclude: Iterable[str] = (),
+        respect_gitignore: bool = False,
+        include_hidden: bool = True,
+        ignore_dirs: Iterable[str] = DEFAULT_IGNORE_DIRS,
+    ) -> None:
+        self.root = Path(root).resolve()
+        self.include_hidden = include_hidden
+        self.ignore_dirs = frozenset(ignore_dirs)
+        patterns = list(DEFAULT_IGNORE_GLOBS) + [p for p in exclude if p]
+        if respect_gitignore:
+            patterns.extend(self._load_gitignore(self.root))
+        self.spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
+        self.dir_excludes = [p.rstrip("/") for p in exclude if p.endswith("/")]
+
+    @staticmethod
+    def _load_gitignore(root: Path) -> list[str]:
+        gitignore = root / ".gitignore"
+        if not gitignore.is_file():
+            return []
+        try:
+            return [
+                line.strip()
+                for line in gitignore.read_text("utf-8", errors="ignore").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+        except OSError:
+            return []
+
+    def _dir_excluded(self, name: str, rel: str) -> bool:
+        if name in self.ignore_dirs:
+            return True
+        if not self.include_hidden and name.startswith(".") and name not in {".github", ".gitlab", ".circleci"}:
+            return True
+        if name.endswith(".egg-info"):
+            return True
+        return self.spec.match_file(rel + "/") or self.spec.match_file(rel)
+
+    def walk(self) -> Iterator[FileEntry]:
+        """Yield :class:`FileEntry` for every candidate file under ``root``."""
+        if self.root.is_file():
             try:
-                final_response = requests.get(url, timeout=timeout, allow_redirects=True)
-                return final_response.status_code == 200
-            except:
-                return False
-        return False
-    except:
-        return False
+                yield FileEntry(self.root, self.root.name, self.root.stat().st_size)
+            except OSError:
+                return
+            return
+
+        stack: deque[Path] = deque([self.root])
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as it:
+                    entries = list(it)
+            except (PermissionError, FileNotFoundError, NotADirectoryError, OSError) as exc:
+                logger.debug("Cannot list %s: %s", current, exc)
+                continue
+            for entry in sorted(entries, key=lambda e: e.name):
+                try:
+                    rel = os.path.relpath(entry.path, self.root).replace(os.sep, "/")
+                    if entry.is_dir(follow_symlinks=False):
+                        if not self._dir_excluded(entry.name, rel):
+                            stack.append(Path(entry.path))
+                        continue
+                    if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                        continue
+                    if self.spec.match_file(rel):
+                        continue
+                    size = entry.stat(follow_symlinks=False).st_size
+                except OSError as exc:
+                    logger.debug("Cannot stat %s: %s", entry.path, exc)
+                    continue
+                yield FileEntry(Path(entry.path), rel, size)
 
 
-def _should_skip_file(file_path: str) -> bool:
-    """Check if file should be skipped entirely"""
-    file_path_lower = file_path.lower()
-    file_name = os.path.basename(file_path_lower)
-    
-    if re.match(r'^inline_js_\d+\.js$', file_name):
-        return True
-    if re.match(r'^[a-z0-9_-]{8,}\.js$', file_name, re.IGNORECASE):
-        return True
-    if re.match(r'^[a-z0-9_-]{8,}-[a-z0-9_-]*\.js$', file_name, re.IGNORECASE):
-        return True
-    
-    for skip_dir in SKIP_DIRS:
-        if f'/{skip_dir}/' in file_path_lower or f'\\{skip_dir}\\' in file_path_lower:
-            return True
-    
-    for pattern in SKIP_FILE_PATTERNS:
-        if re.search(pattern, file_path_lower, re.IGNORECASE):
-            return True
-    
-    return False
+# --------------------------------------------------------------------------- #
+# Rule index
+# --------------------------------------------------------------------------- #
 
 
-def _should_skip_line(line: str) -> bool:
-    """Check if line should be skipped"""
-    line_stripped = line.strip()
-    if not line_stripped:
-        return True
-    if line_stripped.startswith('//') or line_stripped.startswith('/*'):
-        return True
-    
-    for pattern in SKIP_LINE_PATTERNS:
-        if re.search(pattern, line_stripped, re.IGNORECASE):
-            return True
-    
-    if line_stripped in ['{', '}', '(', ')', '[', ']', ';', '=>', '->', ':', ',']:
-        return True
-    
-    return False
+class RuleIndex:
+    """Groups rules so that candidate lookup per file is O(1)-ish."""
+
+    def __init__(self, rules: Sequence[Rule]) -> None:
+        self.rules = tuple(rules)
+        self.by_ext: dict[str, list[Rule]] = {}
+        self.any_ext: list[Rule] = []
+        self.named: list[Rule] = []
+        for rule in self.rules:
+            if rule._filename_patterns:
+                self.named.append(rule)
+                if not rule._extensions:
+                    continue
+            if rule._extensions:
+                for ext in rule._extensions:
+                    self.by_ext.setdefault(ext, []).append(rule)
+            elif not rule._filename_patterns:
+                self.any_ext.append(rule)
+
+    def candidates(self, entry: FileEntry) -> list[Rule]:
+        seen: set[str] = set()
+        result: list[Rule] = []
+        for rule in self.any_ext:
+            seen.add(rule.id)
+            result.append(rule)
+        for rule in self.by_ext.get(entry.ext, ()):
+            if rule.id not in seen:
+                seen.add(rule.id)
+                result.append(rule)
+        for rule in self.named:
+            if rule.id not in seen and rule.applies_to(entry):
+                seen.add(rule.id)
+                result.append(rule)
+        return result
 
 
-def _process_single_file(args):
-    """Process a single file for vulnerabilities"""
-    file_path, rule, target_dir = args
-    local_findings = []
+@lru_cache(maxsize=8)
+def _cached_index(surfaces: tuple[str, ...]) -> RuleIndex:
+    return RuleIndex(rules_for_surfaces(surfaces))
+
+
+# --------------------------------------------------------------------------- #
+# Per-file analysis
+# --------------------------------------------------------------------------- #
+
+
+def _sanitization(rule: Rule, ctx: FileContext, line_no: int) -> str | None:
+    """Return the sanitizer / mitigation indicator found near ``line_no``."""
+    match rule.sanitizer_scope:
+        case "line":
+            text = ctx.line(line_no)
+        case "statement":
+            text = ctx.statement(line_no)
+        case _:
+            text = ctx.window(line_no, rule.context_before, rule.context_after)
+    found = rule.find_sanitizer(text)
+    if found is None and rule.use_surface_indicators:
+        found = SURFACE_BY_KEY[rule.surface].find_indicator(text)
+    return found
+
+
+def _accept_hit(rule: Rule, ctx: FileContext, hit: Hit) -> Hit:
+    if not hit.skip_sanitizer_check and hit.mitigated_by is None:
+        hit.mitigated_by = _sanitization(rule, ctx, hit.line)
+    if not hit.snippet:
+        hit.snippet = ctx.line(hit.line)
+    return hit
+
+
+def _run_line_rules(ctx: FileContext, rules: Sequence[Rule]) -> Iterator[tuple[Rule, Hit]]:
+    lowered = ctx.lower_lines
+    for idx, line in enumerate(ctx.lines):
+        if not line or len(line) > 20_000:
+            continue
+        line_no = idx + 1
+        low = lowered[idx]
+        for rule in rules:
+            if not rule.prefilter(low):
+                continue
+            if not rule.scan_comments and ctx.is_comment(line_no):
+                continue
+            for pattern in rule._patterns:
+                match = pattern.search(line)
+                if not match:
+                    continue
+                if rule.matches_negative(line):
+                    break
+                hit: Hit | bool | None = True
+                if rule.checker is not None:
+                    try:
+                        hit = rule.checker(rule, ctx, match, line_no)
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.debug("checker %s failed on %s:%d: %s", rule.id, ctx.rel_path, line_no, exc)
+                        hit = None
+                if hit is None or hit is False:
+                    break
+                if hit is True:
+                    hit = Hit(line=line_no, snippet=line, column=match.start() + 1)
+                yield rule, _accept_hit(rule, ctx, hit)
+                break
+
+
+def _run_multiline_rules(ctx: FileContext, rules: Sequence[Rule]) -> Iterator[tuple[Rule, Hit]]:
+    for rule in rules:
+        if rule._keywords and not any(k in ctx.text.lower() for k in rule._keywords):
+            continue
+        for pattern in rule._patterns:
+            for match in pattern.finditer(ctx.text):
+                line_no = ctx.line_at_offset(match.start())
+                block = match.group(0)
+                if rule.matches_negative(block):
+                    continue
+                if not rule.scan_comments and ctx.is_comment(line_no):
+                    continue
+                hit: Hit | bool | None = True
+                if rule.checker is not None:
+                    try:
+                        hit = rule.checker(rule, ctx, match, line_no)
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.debug("checker %s failed on %s:%d: %s", rule.id, ctx.rel_path, line_no, exc)
+                        hit = None
+                if hit is None or hit is False:
+                    continue
+                if hit is True:
+                    hit = Hit(line=line_no, snippet=ctx.line(line_no), column=match.start() - ctx.text.rfind("\n", 0, match.start()))
+                yield rule, _accept_hit(rule, ctx, hit)
+
+
+def _run_file_checkers(ctx: FileContext, rules: Sequence[Rule]) -> Iterator[tuple[Rule, Hit]]:
+    for rule in rules:
+        if rule.file_checker is None:
+            continue
+        try:
+            hits = list(rule.file_checker(rule, ctx))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("file checker %s failed on %s: %s", rule.id, ctx.rel_path, exc)
+            continue
+        for hit in hits:
+            if not rule.scan_comments and ctx.is_comment(hit.line):
+                continue
+            yield rule, _accept_hit(rule, ctx, hit)
+
+
+def _read_streaming(path: Path, max_size: int) -> str:
+    """Read a large file line by line, never holding more than needed twice."""
+    chunks: list[str] = []
+    read = 0
+    with path.open("rb") as fh:
+        for raw in fh:
+            read += len(raw)
+            if read > max_size:
+                break
+            chunks.append(decode_bytes(raw))
+    return "".join(chunks)
+
+
+def analyze_file(entry: FileEntry, rules: Sequence[Rule], max_file_size: int, stream_threshold: int) -> tuple[list[Finding], str | None]:
+    """Analyse one file with the given rules.
+
+    Returns ``(findings, skip_reason)`` where ``skip_reason`` is ``None`` when
+    the file content was analysed, otherwise one of ``"binary"``, ``"size"``
+    or ``"error"`` (path-only rules still run in every case).
+    """
+    findings: list[Finding] = []
+    path_rules = [r for r in rules if r.path_only]
+    content_rules = [r for r in rules if not r.path_only]
+
+    for rule in path_rules:
+        try:
+            if rule.file_checker is not None:
+                hits = list(rule.file_checker(rule, FileContext(entry, "")))
+            else:
+                hits = [Hit(line=1, snippet=entry.name)]
+            for hit in hits:
+                hit.skip_sanitizer_check = True
+                findings.append(build_finding(rule, hit, entry.rel_path))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("path rule %s failed on %s: %s", rule.id, entry.rel_path, exc)
+
+    if not content_rules:
+        return findings, None
+    if entry.ext in BINARY_EXTENSIONS:
+        return findings, "binary"
+    if entry.size > max_file_size:
+        return findings, "size"
 
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
-            lines = content.splitlines()
+        with entry.path.open("rb") as fh:
+            sample = fh.read(_TEXT_SAMPLE)
+            if is_binary_sample(sample):
+                return findings, "binary"
+            if entry.size > stream_threshold:
+                fh.seek(0)
+                text = _read_streaming(entry.path, max_file_size)
+            else:
+                text = decode_bytes(sample + fh.read())
+    except (OSError, PermissionError) as exc:
+        logger.debug("Cannot read %s: %s", entry.rel_path, exc)
+        return findings, "error"
 
-        if not content.strip():
-            return local_findings
+    if not text.strip():
+        return findings, None
 
-        if _should_skip_file(file_path):
-            return local_findings
+    ctx = FileContext(entry, text)
+    large = entry.size > stream_threshold
+    # File-level keyword gate: a rule whose keyword never appears anywhere in the
+    # file cannot match any line, so drop it before the per-line loop. This is what
+    # keeps large/uniform files (e.g. minified-but-unfiltered, generated code) cheap.
+    low_text = ctx.text.lower()
 
-        for line_idx, raw_line in enumerate(lines, 1):
-            line = raw_line.strip()
-            if _should_skip_line(line):
-                continue
+    def _gated(candidates: list[Rule]) -> list[Rule]:
+        return [r for r in candidates if not r._keywords or any(k in low_text for k in r._keywords)]
 
-            vuln_category = rule.category.lower() if hasattr(rule, 'category') else 'unknown'
-            category_patterns = VULN_PATTERNS.get(vuln_category, {})
-            
-            if not category_patterns:
-                for pattern in rule.vuln_patterns:
-                    if pattern.search(line):
-                        local_findings.append({
-                            "finding_id": f"AS-{rule.category}-{line_idx}",
-                            "cwe": getattr(rule, 'cwe', 'N/A'),
-                            "category": getattr(rule, 'category', 'UNKNOWN'),
-                            "name": getattr(rule, 'name', 'Unnamed Rule'),
-                            "file": os.path.relpath(file_path, target_dir),
-                            "line": line_idx,
-                            "snippet": line[:200],
-                            "status": "VULNERABLE",
-                            "severity": getattr(rule, 'severity', 'MEDIUM'),
-                            "confidence": getattr(rule, 'confidence', 70),
-                            "description": getattr(rule, 'vuln_desc', ''),
-                            "timestamp": datetime.now().isoformat()
-                        })
-                        break
-                continue
+    line_rules = _gated([r for r in content_rules if r._patterns and not r.multiline])
+    multiline_rules = [] if large else _gated([r for r in content_rules if r._patterns and r.multiline])
+    file_rules = [] if large else [r for r in content_rules if r.file_checker is not None]
 
-            for pattern, description in category_patterns:
-                if re.search(pattern, line, re.IGNORECASE):
-                    start_win = max(0, line_idx - 3)
-                    end_win = min(len(lines), line_idx + 3)
-                    context = lines[start_win:end_win]
-                    
-                    is_sanitized = False
-                    sanitize_patterns = [
-                        r'sanitize', r'escape', r'encode', r'DOMPurify',
-                        r'htmlspecialchars', r'strip_tags', r'filter_var',
-                        r'prepared', r'bindparam', r'paramstyle',
-                        r'validate', r'whitelist', r'allowlist',
-                    ]
-                    for sp in sanitize_patterns:
-                        if any(re.search(sp, c, re.IGNORECASE) for c in context):
-                            is_sanitized = True
-                            break
-                    
-                    local_findings.append({
-                        "finding_id": f"AS-{vuln_category}-{line_idx}",
-                        "cwe": getattr(rule, 'cwe', 'N/A'),
-                        "category": vuln_category,
-                        "name": description,
-                        "file": os.path.relpath(file_path, target_dir),
-                        "line": line_idx,
-                        "snippet": line[:200],
-                        "status": "SANITIZED" if is_sanitized else "VULNERABLE",
-                        "severity": getattr(rule, 'severity', 'HIGH'),
-                        "confidence": 80 if not is_sanitized else 50,
-                        "description": f"{description} detected" + (" (sanitized)" if is_sanitized else ""),
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    break
+    seen: set[tuple[str, int]] = set()
+    for rule, hit in _run_line_rules(ctx, line_rules):
+        key = (rule.id, hit.line)
+        if key in seen:
+            continue
+        seen.add(key)
+        findings.append(build_finding(rule, hit, entry.rel_path))
+    for rule, hit in _run_multiline_rules(ctx, multiline_rules):
+        key = (rule.id, hit.line)
+        if key in seen:
+            continue
+        seen.add(key)
+        findings.append(build_finding(rule, hit, entry.rel_path))
+    for rule, hit in _run_file_checkers(ctx, file_rules):
+        key = (rule.id, hit.line)
+        if key in seen:
+            continue
+        seen.add(key)
+        findings.append(build_finding(rule, hit, entry.rel_path))
+    return findings, None
 
-    except Exception as e:
-        print(f"[SCAN ERROR] {file_path}: {e}")
 
-    return local_findings
+def _worker(entry: FileEntry, surfaces: tuple[str, ...], max_file_size: int, stream_threshold: int) -> tuple[FileEntry, list[Finding], str | None]:
+    """Process-pool friendly wrapper (rules are rebuilt lazily per process)."""
+    index = _cached_index(surfaces)
+    findings, reason = analyze_file(entry, index.candidates(entry), max_file_size, stream_threshold)
+    return entry, findings, reason
+
+
+# --------------------------------------------------------------------------- #
+# Orchestration
+# --------------------------------------------------------------------------- #
+
+ProgressCallback = Callable[[FileEntry, int], None]
 
 
 class SurfaceScanner:
-    """Main scanner class - focused on real vulnerabilities"""
-    
-    def __init__(self, target_dir: str, rules_list: Optional[List] = None):
-        self.target_dir = os.path.abspath(target_dir)
-        self.rules = rules_list if rules_list is not None else RULES
-        self.findings = []
-        self.skipped_count = 0
-        self.scanned_count = 0
+    """High level scanner: discover files, analyse them concurrently, aggregate."""
 
-        self.supported_exts = {
-            '.js', '.jsx', '.ts', '.tsx', '.html', '.htm',
-            '.py', '.php', '.rb', '.java', '.go', '.rs',
-            '.c', '.cpp', '.h', '.hpp', '.sh', '.bash',
-            '.xml', '.json', '.yml', '.yaml', '.conf',
-            '.sql', '.vue', '.svelte', '.env', '.txt',
-            '.ini', '.cfg', '.properties', '.toml',
-            '.twig', '.j2', '.ejs', '.pug', '.hbs',
-        }
+    def __init__(
+        self,
+        config: ScanConfig,
+        rules: Sequence[Rule] | None = None,
+        on_file: ProgressCallback | None = None,
+        on_discovered: Callable[[int], None] | None = None,
+    ) -> None:
+        self.config = config
+        self.surfaces = resolve_surface_keys(config.surfaces)
+        self.rules = tuple(rules) if rules is not None else rules_for_surfaces(self.surfaces)
+        self.index = RuleIndex(self.rules)
+        self.on_file = on_file
+        self.on_discovered = on_discovered
+        self.stats = ScanStats(rules_loaded=len(self.rules), surfaces_selected=len(self.surfaces))
+        self.findings: list[Finding] = []
 
-    def scan(self) -> List[Dict]:
-        """Perform the scan"""
-        tasks = []
-        self.scanned_count = 0
-        self.skipped_count = 0
+    # -- public API -------------------------------------------------------- #
 
-        print(f"[INFO] Scanning target: {self.target_dir}")
-        print(f"[INFO] Rules loaded: {len(self.rules)}")
+    def discover(self) -> list[FileEntry]:
+        walker = FileWalker(
+            self.config.target,
+            exclude=self.config.exclude,
+            respect_gitignore=self.config.respect_gitignore,
+            include_hidden=self.config.include_hidden,
+        )
+        entries = list(walker.walk())
+        self.stats.files_discovered = len(entries)
+        if self.on_discovered:
+            self.on_discovered(len(entries))
+        return entries
 
-        for root, dirs, files in os.walk(self.target_dir):
-            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+    def use_processes(self, n_entries: int) -> bool:
+        """Analysis is CPU-bound (regex + AST), so threads barely parallelise it.
 
-            for file in files:
-                file_path = os.path.join(root, file)
-                if not self._should_scan_file(file_path):
-                    self.skipped_count += 1
+        Use a process pool when the tree is large enough to amortise fork/IPC cost
+        and more than one core is available. The user can force either mode:
+        ``--processes`` always uses processes; ``-w 1`` keeps it single/threaded.
+        """
+        cpus = os.cpu_count() or 1
+        if self.config.workers == 1 or cpus < 2:
+            return False
+        if self.config.process_pool:
+            return n_entries > 8
+        return n_entries >= 400
+
+    def scan(self) -> ScanResult:
+        started = datetime.now(UTC)
+        t0 = time.perf_counter()
+        entries = self.discover()
+        workers = self.config.workers or max(2, min(32, (os.cpu_count() or 4) + 2))
+        raw: list[Finding] = []
+
+        if entries:
+            if self.use_processes(len(entries)):
+                raw.extend(self._run_process_pool(entries, workers))
+            else:
+                raw.extend(self._run_thread_pool(entries, workers))
+
+        findings = prioritize(
+            filter_by_threshold(dedupe(raw), self.config.risk_threshold, self.config.hide_mitigated)
+        )
+        self.findings = findings
+        self.stats.duration_seconds = time.perf_counter() - t0
+        finished = datetime.now(UTC)
+        summary = summarize(findings, self.surfaces, self.rules, self.stats.files_scanned)
+        return ScanResult(
+            target=str(Path(self.config.target).resolve()),
+            started_at=started.isoformat(timespec="seconds"),
+            finished_at=finished.isoformat(timespec="seconds"),
+            findings=findings,
+            stats=self.stats,
+            surfaces_run=self.surfaces,
+            summary=summary,
+        )
+
+    # -- executors --------------------------------------------------------- #
+
+    def _record(self, entry: FileEntry, findings: list[Finding], reason: str | None) -> None:
+        match reason:
+            case None:
+                self.stats.files_scanned += 1
+                self.stats.bytes_scanned += entry.size
+            case "binary":
+                self.stats.files_skipped_binary += 1
+            case "size":
+                self.stats.files_skipped_size += 1
+            case _:
+                self.stats.files_skipped_error += 1
+        if self.on_file:
+            self.on_file(entry, len(findings))
+
+    def _run_thread_pool(self, entries: Sequence[FileEntry], workers: int) -> list[Finding]:
+        results: list[Finding] = []
+        cfg = self.config
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="att4ck") as pool:
+            futures = {
+                pool.submit(analyze_file, entry, self.index.candidates(entry), cfg.max_file_size, cfg.stream_threshold): entry
+                for entry in entries
+            }
+            for future in as_completed(futures):
+                entry = futures[future]
+                try:
+                    findings, reason = future.result()
+                except Exception as exc:  # pragma: no cover - defensive
+                    self.stats.errors.append(f"{entry.rel_path}: {exc}")
+                    self._record(entry, [], "error")
                     continue
+                results.extend(findings)
+                self._record(entry, findings, reason)
+        return results
 
-                self.scanned_count += 1
-                for rule in self.rules:
-                    if self._rule_matches_file(rule, file_path):
-                        tasks.append((file_path, rule, self.target_dir))
-
-        print(f"[INFO] Files scanned: {self.scanned_count}")
-        print(f"[INFO] Files skipped: {self.skipped_count}")
-
-        if not tasks:
-            print("[INFO] No files to scan")
-            return self.findings
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            results = executor.map(_process_single_file, tasks)
-
-        for r in results:
-            self.findings.extend(r)
-
-        print(f"[INFO] Findings found: {len(self.findings)}")
-        return self.findings
-
-    def _should_scan_file(self, file_path: str) -> bool:
-        if _should_skip_file(file_path):
-            return False
-        ext = os.path.splitext(file_path)[1].lower()
-        if ext not in self.supported_exts:
-            return False
+    def _run_process_pool(self, entries: Sequence[FileEntry], workers: int) -> list[Finding]:
+        results: list[Finding] = []
+        cfg = self.config
         try:
-            if os.path.getsize(file_path) > 10 * 1024 * 1024:
-                return False
-        except:
-            return False
-        return True
-
-    def _rule_matches_file(self, rule, file_path: str) -> bool:
-        ext = os.path.splitext(file_path)[1].lower()
-        return any(file_path.endswith(fe) or ext == fe for fe in rule.file_exts)
-
-    def export_findings(self, output_dir: str = "output") -> bool:
-        import sqlite3
-        os.makedirs(output_dir, exist_ok=True)
-        
-        json_path = os.path.join(output_dir, "findings.json")
-        try:
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(self.findings, f, default=safe_serializer, indent=2, ensure_ascii=False)
-            print(f"[+] Exported {len(self.findings)} findings to {json_path}")
-        except Exception as e:
-            print(f"[!] Error exporting JSON: {e}")
-            return False
-        
-        db_path = os.path.join(output_dir, "findings.db")
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("DROP TABLE IF EXISTS security_findings")
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS security_findings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    finding_id TEXT,
-                    cwe TEXT,
-                    category TEXT,
-                    name TEXT,
-                    file_path TEXT,
-                    line_num INTEGER,
-                    snippet TEXT,
-                    status TEXT,
-                    severity TEXT,
-                    confidence INTEGER,
-                    description TEXT,
-                    timestamp TEXT,
-                    risk_score INTEGER
-                )
-            """)
-            for f in self.findings:
-                cursor.execute("""
-                    INSERT INTO security_findings (
-                        finding_id, cwe, category, name, file_path,
-                        line_num, snippet, status, severity,
-                        confidence, description, timestamp, risk_score
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    f.get("finding_id"),
-                    f.get("cwe"),
-                    f.get("category"),
-                    f.get("name"),
-                    f.get("file"),
-                    f.get("line"),
-                    f.get("snippet"),
-                    f.get("status"),
-                    f.get("severity"),
-                    f.get("confidence"),
-                    f.get("description"),
-                    f.get("timestamp"),
-                    f.get("risk_score", 0),
-                ))
-            conn.commit()
-            conn.close()
-            print(f"[+] Exported findings to {db_path}")
-            return True
-        except Exception as e:
-            print(f"[!] Error exporting to SQLite: {e}")
-            return False
+            pool: Executor = ProcessPoolExecutor(max_workers=workers)
+        except (OSError, ValueError):  # pragma: no cover - platform dependent
+            return self._run_thread_pool(entries, workers)
+        with pool:
+            futures = {
+                pool.submit(_worker, entry, self.surfaces, cfg.max_file_size, cfg.stream_threshold): entry
+                for entry in entries
+            }
+            for future in as_completed(futures):
+                entry = futures[future]
+                try:
+                    _, findings, reason = future.result()
+                except Exception as exc:  # pragma: no cover - defensive
+                    self.stats.errors.append(f"{entry.rel_path}: {exc}")
+                    self._record(entry, [], "error")
+                    continue
+                results.extend(findings)
+                self._record(entry, findings, reason)
+        return results
 
 
-def export_results(results, output_dir):
-    scanner = SurfaceScanner(".")
-    scanner.findings = results
-    return scanner.export_findings(output_dir)
+def scan_path(
+    target: str | os.PathLike[str],
+    surfaces: Iterable[str] = (),
+    exclude: Iterable[str] = (),
+    risk_threshold: str | Severity = Severity.INFO,
+    workers: int = 0,
+    hide_mitigated: bool = False,
+    **kwargs: object,
+) -> ScanResult:
+    """Convenience wrapper: scan ``target`` and return the :class:`ScanResult`."""
+    config = ScanConfig(
+        target=Path(target),
+        surfaces=tuple(surfaces),
+        exclude=tuple(exclude),
+        workers=workers,
+        risk_threshold=Severity.parse(risk_threshold),
+        hide_mitigated=hide_mitigated,
+        **kwargs,  # type: ignore[arg-type]
+    )
+    return SurfaceScanner(config).scan()
+
+
+__all__ = [
+    "BINARY_EXTENSIONS",
+    "DEFAULT_IGNORE_DIRS",
+    "DEFAULT_IGNORE_GLOBS",
+    "FileWalker",
+    "RuleIndex",
+    "SurfaceScanner",
+    "analyze_file",
+    "decode_bytes",
+    "is_binary_sample",
+    "load_rules",
+    "scan_path",
+]

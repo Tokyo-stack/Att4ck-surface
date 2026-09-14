@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "att4ck-surface"
+version = "1.0.0"
+description = "ATT4ck Surface - a high-performance modular CLI SAST tool that maps 40 attack surfaces with sanitization-aware detection."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Tokyo" }]
+keywords = ["security", "sast", "static-analysis", "attack-surface", "vulnerability-scanner", "appsec", "cli"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "rich>=13.7,<15",
+    "click>=8.1,<9",
+    "pathspec>=0.12,<1",
+]
+
+[project.optional-dependencies]
+# Live-target crawling / XSS probing (the `crawl` command).
+live = [
+    "requests>=2.31,<3",
+    "beautifulsoup4>=4.12,<5",
+]
+# HTML templating via Jinja2 and YAML config parsing for callers who want them.
+extra = [
+    "jinja2>=3.1,<4",
+    "pyyaml>=6.0,<7",
+]
+dev = [
+    "pytest>=8.0,<9",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/Tokyo-stack/Att4ck-surface"
+Repository = "https://github.com/Tokyo-stack/Att4ck-surface"
+Issues = "https://github.com/Tokyo-stack/Att4ck-surface/issues"
+
+[project.scripts]
+att4ck = "attack_surface.cli:main"
+att4ck-surface = "attack_surface.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["attack_surface*"]
+
+[tool.setuptools.package-data]
+attack_surface = ["templates/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501", "B008", "SIM102", "SIM103", "SIM110", "C401", "C408", "UP042"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = false
