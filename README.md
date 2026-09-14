@@ -95,9 +95,6 @@ ATT4ckSurface/
 │   ├── findings.csv                   # CSV format
 │   └── report.html                    # HTML report
 │
-├── test_sandbox/                      # Test environment
-│   └── (vulnerable test files)
-│
 ├── main.py                            # CLI entry point
 ├── requirements.txt                   # Python dependencies
 ├── .gitignore                         # Git ignore rules
@@ -188,7 +185,7 @@ Run the scanner against any directory (defaults to current directory if none pro
 python main.py <target_directory>
 ```
 
-For example, to run against the included test sandbox:
+For example:
 ```bash
-python main.py test_sandbox
+python main.py /path/to/your/project
 ```
